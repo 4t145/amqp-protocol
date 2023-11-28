@@ -10,10 +10,14 @@ pub struct Deserializer<'de> {
 }
 
 impl<'de> Deserializer<'de> {
-    pub fn take_type<T: Decode<'de>>(&mut self) -> DecodeResult<T> {
-        self.take::<T, _>(T::try_decode)
+    pub fn eat_type<T: Decode<'de>>(&mut self) -> DecodeResult<T> {
+        self.eat::<T, _>(T::try_decode)
     }
-    pub fn take<T, F>(&mut self, f: F) -> DecodeResult<T>
+    pub fn eat_constructor(&mut self) -> DecodeResult<()> {
+        self.constructor = self.eat_type::<Constructor>()?;
+        Ok(())
+    }
+    pub fn eat<T, F>(&mut self, f: F) -> DecodeResult<T>
     where
         F: Fn(&'de [u8]) -> (DecodeResult<T>, &'de [u8]),
     {
@@ -23,6 +27,12 @@ impl<'de> Deserializer<'de> {
     }
     pub fn size(&self) -> DecodeResult<usize> {
         self.constructor.size(self.bytes)
+    }
+    pub fn deserialize_seed<T>(&mut self, seed: T) ->  DecodeResult<T::Value>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        seed.deserialize(&mut self)
     }
 }
 
@@ -45,24 +55,24 @@ impl de::Error for Error {
     }
 }
 
-pub struct ListAccess<'de> {
+pub struct ListAccess<'de, 'b> {
     count: usize,
-    data: &'de [u8],
+    de: &'de mut Deserializer<'b>,
 }
 
-impl<'de> ListAccess<'de> {
-    pub fn with_count(count: usize, data: &'de [u8]) -> ListAccess<'de> {
-        ListAccess { count, data }
+impl<'de, 'b> ListAccess<'de, 'b> {
+    pub fn with_count(count: usize, de: &'de mut Deserializer<'b>) -> ListAccess<'de, 'b> {
+        ListAccess { count, de }
     }
-    pub fn empty() -> ListAccess<'de> {
+    pub fn empty(de: &'de mut Deserializer<'b>) -> ListAccess<'de, 'b> {
         ListAccess {
             count: 0,
-            data: &[],
+            de,
         }
     }
 }
 
-impl<'de> de::SeqAccess<'de> for ListAccess<'de> {
+impl<'de: 'b, 'b> de::SeqAccess<'de> for ListAccess<'de, 'b> {
     type Error = DecodeErrorKind;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
@@ -73,17 +83,10 @@ impl<'de> de::SeqAccess<'de> for ListAccess<'de> {
             Ok(None)
         } else {
             // read constructor
-            let (constructor, bytes) = Constructor::try_decode(self.data);
-            let constructor = constructor?;
-            self.data = bytes;
-            let size = constructor.size(bytes)?;
-
-            let (item_bytes, rest) = n_bytes(size, "n bytes data")(bytes);
-            self.data = rest;
-            let value = seed.deserialize(Deserializer {
-                constructor,
-                bytes: item_bytes?,
-            })?;
+            let de = &mut *self.de;
+            de.eat_constructor()?;
+            let value = seed.deserialize(de)?;
+            self.de = de;
             self.count -= 1;
             Ok(Some(value))
         }
@@ -93,53 +96,37 @@ impl<'de> de::SeqAccess<'de> for ListAccess<'de> {
         Some(self.count)
     }
 }
-impl<'de> de::Deserializer<'de> for Deserializer<'de> {
+impl<'de> de::Deserializer<'de> for &'de mut Deserializer<'de> {
     type Error = DecodeErrorKind;
 
     fn deserialize_any<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: serde::de::Visitor<'de>,
     {
-        let constructor = self.take_type::<Constructor>()?;
-        match constructor {
+        // let constructor = self.take_type::<Constructor>()?;
+        match self.constructor {
             Constructor::FormatCode(code) => match code {
                 FormatCode::NULL => visitor.visit_none(),
                 FormatCode::BOOLEAN_TRUE => visitor.visit_bool(true),
                 FormatCode::BOOLEAN_FALSE => visitor.visit_bool(false),
                 FormatCode::UINT_0 => visitor.visit_u32(0),
                 FormatCode::ULONG_0 => visitor.visit_u64(0),
-                FormatCode::LIST0 => visitor.visit_seq(ListAccess::empty()),
-                FormatCode::BOOLEAN => visitor.visit_bool(0 == self.take(u8("boolean"))?),
-                FormatCode::UBYTE => visitor.visit_u8(self.take(u8("ubyte"))?),
-                FormatCode::BYTE => visitor.visit_i8(self.take(u8("byte"))? as i8),
-                FormatCode::SMALL_UINT => visitor.visit_u32(self.take(u8("uint"))? as u32),
-                FormatCode::SMALL_ULONG => visitor.visit_u64(self.take(u8("ulong"))? as u64),
-                FormatCode::SMALL_INT => visitor.visit_i32(self.take(u8("int"))? as i32),
-                FormatCode::SMALL_LONG => visitor.visit_i64(self.take(u8("long"))? as i64),
-                FormatCode::USHORT => {
-                    todo!()
-                }
-                FormatCode::SHORT => {
-                    todo!()
-                }
-                FormatCode::UINT => {
-                    todo!()
-                }
-                FormatCode::INT => {
-                    todo!()
-                }
-                FormatCode::ULONG => {
-                    todo!()
-                }
-                FormatCode::LONG => {
-                    todo!()
-                }
-                FormatCode::FLOAT => {
-                    todo!()
-                }
-                FormatCode::DOUBLE => {
-                    todo!()
-                }
+                FormatCode::LIST0 => visitor.visit_seq(ListAccess::empty(&mut self)),
+                FormatCode::BOOLEAN => visitor.visit_bool(0 == self.eat(u8("boolean"))?),
+                FormatCode::UBYTE => visitor.visit_u8(self.eat(u8("ubyte"))?),
+                FormatCode::BYTE => visitor.visit_i8(self.eat(u8("byte"))? as i8),
+                FormatCode::SMALL_UINT => visitor.visit_u32(self.eat(u8("uint"))? as u32),
+                FormatCode::SMALL_ULONG => visitor.visit_u64(self.eat(u8("ulong"))? as u64),
+                FormatCode::SMALL_INT => visitor.visit_i32(self.eat(u8("int"))? as i32),
+                FormatCode::SMALL_LONG => visitor.visit_i64(self.eat(u8("long"))? as i64),
+                FormatCode::USHORT => visitor.visit_u16(self.eat(u16("ushort"))?),
+                FormatCode::SHORT => visitor.visit_i16(self.eat(i16("short"))?),
+                FormatCode::UINT => visitor.visit_i32(self.eat(i32("uint"))?),
+                FormatCode::INT => visitor.visit_i32(self.eat(i32("int"))?),
+                FormatCode::ULONG => visitor.visit_u64(self.eat(u64("ulong"))?),
+                FormatCode::LONG => visitor.visit_i64(self.eat(i64("long"))?),
+                FormatCode::FLOAT => visitor.visit_f32(self.eat(f32("float"))?),
+                FormatCode::DOUBLE => visitor.visit_f64(self.eat(f64("double"))?),
                 FormatCode::DECIMAL32 => {
                     todo!()
                 }
@@ -150,13 +137,16 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
                     todo!()
                 }
                 FormatCode::CHAR => {
-                    todo!()
+                    let charcode = self.eat(u32("char"))?;
+                    let char =
+                        char::from_u32(charcode).ok_or(DecodeErrorKind::InvalidChar(charcode))?;
+                    visitor.visit_char(char)
                 }
                 FormatCode::TIMESTAMP => {
                     todo!()
                 }
                 FormatCode::UUID => {
-                    let uuid = self.take(n_bytes(16, "uuid"))?;
+                    let uuid = self.eat(n_bytes(16, "uuid"))?;
                     visitor.visit_bytes(uuid)
                 }
                 FormatCode::BINARY8 => {
@@ -211,7 +201,10 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
     where
         V: serde::de::Visitor<'de>,
     {
-        todo!()
+        match self.constructor {
+            Constructor::FormatCode(_) => todo!(),
+            Constructor::Described { descriptor, constructor } => todo!(),
+        }
     }
 
     fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -397,6 +390,7 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
     where
         V: serde::de::Visitor<'de>,
     {
+        // visitor.visit_newtype_struct(deserializer)
         todo!()
     }
 

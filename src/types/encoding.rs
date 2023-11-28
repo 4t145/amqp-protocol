@@ -28,7 +28,7 @@
 // array-one = %xE0-EE / %xEF %x00-FF
 // array-four = %xF0-FE / %xFF %x00-FF
 
-use std::{fmt, slice::Iter};
+use std::{fmt, mem::size_of, slice::Iter};
 
 use self::codes::FormatCode;
 mod codes;
@@ -37,7 +37,8 @@ mod de;
 #[derive(Debug)]
 pub enum DecodeErrorKind {
     Expect(&'static str),
-    Invalid(&'static str, u8),
+    InvalidFormatCode(&'static str, u8),
+    InvalidChar(u32),
 }
 
 impl serde::de::Error for DecodeErrorKind {
@@ -122,6 +123,37 @@ fn u8<'a>(expect: &'static str) -> impl Fn(&'a [u8]) -> (DecodeResult<u8>, &'a [
             (Err(DecodeErrorKind::Expect(expect)), bytes)
         }
     }
+}
+
+fn i8<'a>(expect: &'static str) -> impl Fn(&'a [u8]) -> (DecodeResult<i8>, &'a [u8]) {
+    move |bytes: &'a [u8]| {
+        if let Some((u8, bytes)) = bytes.split_first() {
+            (Ok(*u8 as i8), bytes)
+        } else {
+            (Err(DecodeErrorKind::Expect(expect)), bytes)
+        }
+    }
+}
+
+macro_rules! rust_primitive {
+    (be_number: $($type: ident)*) => {
+        $(
+            fn $type<'a>(expect: &'static str) -> impl Fn(&'a [u8]) -> (DecodeResult<$type>, &'a [u8]) {
+                move |bytes: &'a [u8]| {
+                    let (n, bytes) = bytes.split_at(size_of::<$type>());
+                    let Ok(n) = n.try_into() else {
+                        return (Err(DecodeErrorKind::Expect(expect)), bytes);
+                    };
+                    let n = <$type>::from_be_bytes(n);
+                    (Ok(n), bytes)
+                }
+            }
+        )*
+    };
+}
+
+rust_primitive! {
+    be_number: u16 u32 u64 u128 i16 i32 i64 i128 f32 f64
 }
 
 fn read_u8<'a>(bytes: &'a [u8], expect: &'static str) -> (DecodeResult<u8>, &'a [u8]) {

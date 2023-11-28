@@ -61,7 +61,7 @@ impl FormatCode {
                 read_size4(data).0.map(|s| (s as usize) + 4)
             }
             Catagory::Unimplemented(code) => {
-                Err(DecodeErrorKind::Invalid("unimplemented subcatagory", code))
+                Err(DecodeErrorKind::InvalidFormatCode("unimplemented subcatagory", code))
             }
         }
     }
