@@ -1,4 +1,4 @@
-use super::{Decode, DecodeErrorKind, DecodeResult};
+use super::{read_size1, read_size4, Decode, DecodeErrorKind, DecodeResult};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormatCode {
     Primitive(u8),
@@ -15,19 +15,56 @@ macro_rules! primitive {
 
 impl FormatCode {
     pub fn is_ext_type(&self) -> bool {
-        match self {
-            FormatCode::Ext(_, _) => true,
-            _ => false,
-        }
+        matches!(self, FormatCode::Ext(_, _))
     }
 
     pub fn is_primitive_type(&self) -> bool {
-        match self {
-            FormatCode::Primitive(_) => true,
-            _ => false,
+        matches!(self, FormatCode::Primitive(_))
+    }
+    pub const fn catagory(&self) -> Catagory {
+        let b1 = match self {
+            FormatCode::Primitive(b) => b,
+            FormatCode::Ext(b, _) => b,
+        };
+        match *b1 & 0xf0 {
+            0x40 => Catagory::FixedWidth(FixedWidthSubcatagory::Zero),
+            0x50 => Catagory::FixedWidth(FixedWidthSubcatagory::One),
+            0x60 => Catagory::FixedWidth(FixedWidthSubcatagory::Two),
+            0x70 => Catagory::FixedWidth(FixedWidthSubcatagory::Four),
+            0x80 => Catagory::FixedWidth(FixedWidthSubcatagory::Eight),
+            0x90 => Catagory::FixedWidth(FixedWidthSubcatagory::Sixteen),
+            0xa0 => Catagory::VariableWidth(VariableWidthSubcatagory::One),
+            0xb0 => Catagory::VariableWidth(VariableWidthSubcatagory::Four),
+            0xc0 => Catagory::Compound(CompoundSubcatagory::One),
+            0xd0 => Catagory::Compound(CompoundSubcatagory::Four),
+            0xe0 => Catagory::Array(ArraySubcatagory::One),
+            0xf0 => Catagory::Array(ArraySubcatagory::Four),
+            code => Catagory::Unimplemented(code),
         }
     }
-
+    pub fn size(&self, data: &[u8]) -> DecodeResult<usize> {
+        match self.catagory() {
+            Catagory::FixedWidth(FixedWidthSubcatagory::Zero) => Ok(0),
+            Catagory::FixedWidth(FixedWidthSubcatagory::One) => Ok(1),
+            Catagory::FixedWidth(FixedWidthSubcatagory::Two) => Ok(2),
+            Catagory::FixedWidth(FixedWidthSubcatagory::Four) => Ok(4),
+            Catagory::FixedWidth(FixedWidthSubcatagory::Eight) => Ok(8),
+            Catagory::FixedWidth(FixedWidthSubcatagory::Sixteen) => Ok(16),
+            Catagory::VariableWidth(VariableWidthSubcatagory::One)
+            | Catagory::Compound(CompoundSubcatagory::One)
+            | Catagory::Array(ArraySubcatagory::One) => {
+                read_size1(data).0.map(|s| (s as usize) + 1)
+            }
+            Catagory::VariableWidth(VariableWidthSubcatagory::Four)
+            | Catagory::Compound(CompoundSubcatagory::Four)
+            | Catagory::Array(ArraySubcatagory::Four) => {
+                read_size4(data).0.map(|s| (s as usize) + 4)
+            }
+            Catagory::Unimplemented(code) => {
+                Err(DecodeErrorKind::Invalid("unimplemented subcatagory", code))
+            }
+        }
+    }
     primitive! {
         NULL = 0x40,
         BOOLEAN_TRUE = 0x41,
@@ -76,11 +113,13 @@ pub enum Catagory {
     VariableWidth(VariableWidthSubcatagory),
     Compound(CompoundSubcatagory),
     Array(ArraySubcatagory),
+    Unimplemented(u8),
 }
 
 pub enum FixedWidthSubcatagory {
     Zero,
     One,
+    Two,
     Four,
     Eight,
     Sixteen,
@@ -101,19 +140,17 @@ pub enum ArraySubcatagory {
     Four,
 }
 
-impl Decode<'_, '_> for FormatCode {
-    fn try_decode(bytes: &mut &[u8]) -> DecodeResult<Self> {
-        let Some((b0, new_bytes)) = bytes.split_first() else {
-            return Err(DecodeErrorKind::Expect("format code"));
+impl Decode<'_> for FormatCode {
+    fn try_decode(bytes: &[u8]) -> (DecodeResult<Self>, &[u8]) {
+        let Some((b0, bytes)) = bytes.split_first() else {
+            return (Err(DecodeErrorKind::Expect("format code")), bytes);
         };
-        *bytes = new_bytes;
-        if b0 & 0x10 != 0x0f {
-            return Ok(FormatCode::Primitive(*b0));
+        if b0 % 0x10 != 0x0f {
+            return (Ok(FormatCode::Primitive(*b0)), bytes);
         }
-        let Some((b1, new_bytes)) = bytes.split_first() else {
-            return Err(DecodeErrorKind::Expect("ext code"));
+        let Some((b1, bytes)) = bytes.split_first() else {
+            return (Err(DecodeErrorKind::Expect("ext code")), bytes);
         };
-        *bytes = new_bytes;
-        Ok(FormatCode::Ext(*b0, *b1))
+        (Ok(FormatCode::Ext(*b0, *b1)), bytes)
     }
 }

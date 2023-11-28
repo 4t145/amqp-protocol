@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 decimal = "2.1.0"
 serde = "1.0.193"
+uuid = { version = "1.6.1", features = ["serde"] }

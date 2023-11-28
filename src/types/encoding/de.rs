@@ -5,7 +5,25 @@ use serde::de;
 use super::*;
 
 pub struct Deserializer<'de> {
+    constructor: Constructor<'de>,
     bytes: &'de [u8],
+}
+
+impl<'de> Deserializer<'de> {
+    pub fn take_type<T: Decode<'de>>(&mut self) -> DecodeResult<T> {
+        self.take::<T, _>(T::try_decode)
+    }
+    pub fn take<T, F>(&mut self, f: F) -> DecodeResult<T>
+    where
+        F: Fn(&'de [u8]) -> (DecodeResult<T>, &'de [u8]),
+    {
+        let (value, bytes) = f(self.bytes);
+        self.bytes = bytes;
+        value
+    }
+    pub fn size(&self) -> DecodeResult<usize> {
+        self.constructor.size(self.bytes)
+    }
 }
 
 #[derive(Debug)]
@@ -27,7 +45,6 @@ impl de::Error for Error {
     }
 }
 
-
 pub struct ListAccess<'de> {
     count: usize,
     data: &'de [u8],
@@ -35,13 +52,10 @@ pub struct ListAccess<'de> {
 
 impl<'de> ListAccess<'de> {
     pub fn with_count(count: usize, data: &'de [u8]) -> ListAccess<'de> {
-        ListAccess {
-            count,
-            data,
-        }
+        ListAccess { count, data }
     }
     pub fn empty() -> ListAccess<'de> {
-        ListAccess{
+        ListAccess {
             count: 0,
             data: &[],
         }
@@ -53,27 +67,25 @@ impl<'de> de::SeqAccess<'de> for ListAccess<'de> {
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
     where
-        T: de::DeserializeSeed<'de> {
-            if self.count == 0 {
-                return Ok(None)
-            } else {
-                let value = seed.deserialize(Deserializer {
-                    bytes: &mut self.data,
-                })?;
-                return Ok(Some(value))
-            }
-    }
-
-    fn next_element<T>(&mut self) -> Result<Option<T>, Self::Error>
-        where
-            T: serde::Deserialize<'de>, {
+        T: de::DeserializeSeed<'de>,
+    {
         if self.count == 0 {
-            return Ok(None)
+            Ok(None)
         } else {
-            let value = T::deserialize(Deserializer {
-                bytes: &mut self.data,
+            // read constructor
+            let (constructor, bytes) = Constructor::try_decode(self.data);
+            let constructor = constructor?;
+            self.data = bytes;
+            let size = constructor.size(bytes)?;
+
+            let (item_bytes, rest) = n_bytes(size, "n bytes data")(bytes);
+            self.data = rest;
+            let value = seed.deserialize(Deserializer {
+                constructor,
+                bytes: item_bytes?,
             })?;
-            return Ok(Some(value))
+            self.count -= 1;
+            Ok(Some(value))
         }
     }
 
@@ -88,48 +100,22 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
     where
         V: serde::de::Visitor<'de>,
     {
-        let constructor = Constructor::try_decode(&mut self.bytes)?;
+        let constructor = self.take_type::<Constructor>()?;
         match constructor {
             Constructor::FormatCode(code) => match code {
-                FormatCode::NULL => {
-                    visitor.visit_none()
-                }
-                FormatCode::BOOLEAN_TRUE => {
-                    visitor.visit_bool(true)
-                }
-                FormatCode::BOOLEAN_FALSE => {
-                    visitor.visit_bool(false)
-                }
-                FormatCode::UINT_0 => {
-                    visitor.visit_u32(0)
-                }
-                FormatCode::ULONG_0 => {
-                    visitor.visit_u64(0)
-                }
-                FormatCode::LIST0 => {
-                    visitor.visit_seq(ListAccess::empty())
-                }
-                FormatCode::BOOLEAN => {
-                    visitor.visit_bool(0 == read_u8(&mut self.bytes, "boolean")?)
-                }
-                FormatCode::UBYTE => {
-                    visitor.visit_u8(read_u8(&mut self.bytes, "ubyte")?)
-                }
-                FormatCode::BYTE => {
-                    visitor.visit_i8(read_u8(&mut self.bytes, "byte")? as i8)
-                }
-                FormatCode::SMALL_UINT => {
-                    visitor.visit_u32(read_u8(&mut self.bytes, "unit")? as u32)
-                }
-                FormatCode::SMALL_ULONG => {
-                    visitor.visit_u64(read_u8(&mut self.bytes, "ulong")? as u64)
-                }
-                FormatCode::SMALL_INT => {
-                    visitor.visit_i32(read_u8(&mut self.bytes, "in")? as i32)
-                }
-                FormatCode::SMALL_LONG => {
-                    visitor.visit_i64(read_u8(&mut self.bytes, "long")? as i64)
-                }
+                FormatCode::NULL => visitor.visit_none(),
+                FormatCode::BOOLEAN_TRUE => visitor.visit_bool(true),
+                FormatCode::BOOLEAN_FALSE => visitor.visit_bool(false),
+                FormatCode::UINT_0 => visitor.visit_u32(0),
+                FormatCode::ULONG_0 => visitor.visit_u64(0),
+                FormatCode::LIST0 => visitor.visit_seq(ListAccess::empty()),
+                FormatCode::BOOLEAN => visitor.visit_bool(0 == self.take(u8("boolean"))?),
+                FormatCode::UBYTE => visitor.visit_u8(self.take(u8("ubyte"))?),
+                FormatCode::BYTE => visitor.visit_i8(self.take(u8("byte"))? as i8),
+                FormatCode::SMALL_UINT => visitor.visit_u32(self.take(u8("uint"))? as u32),
+                FormatCode::SMALL_ULONG => visitor.visit_u64(self.take(u8("ulong"))? as u64),
+                FormatCode::SMALL_INT => visitor.visit_i32(self.take(u8("int"))? as i32),
+                FormatCode::SMALL_LONG => visitor.visit_i64(self.take(u8("long"))? as i64),
                 FormatCode::USHORT => {
                     todo!()
                 }
@@ -170,7 +156,8 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
                     todo!()
                 }
                 FormatCode::UUID => {
-                    todo!()
+                    let uuid = self.take(n_bytes(16, "uuid"))?;
+                    visitor.visit_bytes(uuid)
                 }
                 FormatCode::BINARY8 => {
                     todo!()
@@ -208,10 +195,10 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
                 FormatCode::ARRAY32 => {
                     todo!()
                 }
+                FormatCode::Primitive(_) => todo!(),
                 FormatCode::Ext(_, _) => {
                     todo!()
                 }
-                FormatCode::Primitive(_) => todo!(),
             },
             Constructor::Described {
                 descriptor,

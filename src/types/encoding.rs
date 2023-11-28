@@ -28,7 +28,7 @@
 // array-one = %xE0-EE / %xEF %x00-FF
 // array-four = %xF0-FE / %xFF %x00-FF
 
-use std::{slice::Iter, fmt};
+use std::{fmt, slice::Iter};
 
 use self::codes::FormatCode;
 mod codes;
@@ -48,9 +48,7 @@ impl serde::de::Error for DecodeErrorKind {
         todo!()
     }
 }
-impl std::error::Error for DecodeErrorKind {
-
-}
+impl std::error::Error for DecodeErrorKind {}
 impl fmt::Display for DecodeErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
@@ -61,13 +59,18 @@ pub type DecodeResult<T> = Result<T, DecodeErrorKind>;
 pub enum Constructor<'a> {
     FormatCode(FormatCode),
     Described {
-        descriptor: &'a Descriptor<'a>,
-        constructor: &'a Constructor<'a>
-    }
+        descriptor: Box<Descriptor<'a>>,
+        constructor: Box<Constructor<'a>>,
+    },
 }
 
-impl<'a>  Constructor<'a> {
-
+impl<'a> Constructor<'a> {
+    pub fn size(&self, data: &[u8]) -> DecodeResult<usize> {
+        match self {
+            Constructor::FormatCode(format_code) => format_code.size(data),
+            Constructor::Described { constructor, .. } => constructor.size(data),
+        }
+    }
 }
 
 pub struct Descriptor<'a> {
@@ -80,59 +83,109 @@ pub struct Value<'a> {
     untyped_bytes: &'a [u8],
 }
 
-
-pub trait Decode<'a, 'b>: Sized {
-    fn try_decode(bytes: &'a mut &'b [u8]) -> DecodeResult<Self>;
+pub trait Decode<'b>: Sized {
+    fn try_decode(bytes: &'b [u8]) -> (DecodeResult<Self>, &'b [u8]);
 }
 
+// fn take_n<'a>(
+//     bytes: &'a [u8],
+//     n: usize,
+//     expect: &'static str,
+// ) -> (DecodeResult<&'a [u8]>, &'a [u8]) {
+//     let (taked, rest) = bytes.split_at(n);
+//     if taked.len() == n {
+//         (Ok(taked), rest)
+//     } else {
+//         (Err(DecodeErrorKind::Expect(expect)), bytes)
+//     }
+// }
 
-fn read_u8(bytes: &mut &[u8], expect: &'static str) -> DecodeResult<u8> {
-    if let Some((u8, new_bytes)) = bytes.split_first() {
-        *bytes = new_bytes;
-        Ok(*u8)
-    } else {
-        Err(DecodeErrorKind::Expect(expect))
+fn n_bytes<'a>(
+    n: usize,
+    expect: &'static str,
+) -> impl Fn(&'a [u8]) -> (DecodeResult<&'a [u8]>, &'a [u8]) {
+    move |bytes: &'a [u8]| {
+        let (taked, rest) = bytes.split_at(n);
+        if taked.len() == n {
+            (Ok(taked), rest)
+        } else {
+            (Err(DecodeErrorKind::Expect(expect)), bytes)
+        }
     }
 }
 
-fn read_size1(bytes: &mut &[u8]) -> DecodeResult<u8> {
+fn u8<'a>(expect: &'static str) -> impl Fn(&'a [u8]) -> (DecodeResult<u8>, &'a [u8]) {
+    move |bytes: &'a [u8]| {
+        if let Some((u8, bytes)) = bytes.split_first() {
+            (Ok(*u8), bytes)
+        } else {
+            (Err(DecodeErrorKind::Expect(expect)), bytes)
+        }
+    }
+}
+
+fn read_u8<'a>(bytes: &'a [u8], expect: &'static str) -> (DecodeResult<u8>, &'a [u8]) {
+    if let Some((u8, bytes)) = bytes.split_first() {
+        (Ok(*u8), bytes)
+    } else {
+        (Err(DecodeErrorKind::Expect(expect)), bytes)
+    }
+}
+
+fn read_size1<'a>(bytes: &'a [u8]) -> (DecodeResult<u8>, &'a [u8]) {
     read_u8(bytes, "size1")
 }
 
-fn read_u32(bytes: &mut &[u8], expect: &'static str) -> DecodeResult<u32> {
-    let (n, new_bytes) = bytes.split_at(4);                     
+fn read_u32<'a>(bytes: &'a [u8], expect: &'static str) -> (DecodeResult<u32>, &'a [u8]) {
+    let (n, bytes) = bytes.split_at(4);
     let Ok(n) = n.try_into() else {
-        return Err(DecodeErrorKind::Expect(expect))
+        return (Err(DecodeErrorKind::Expect(expect)), bytes);
     };
-    *bytes = new_bytes;
     let n = u32::from_be_bytes(n);
-    Ok(n)
+    (Ok(n), bytes)
 }
 
-fn read_size4(bytes: &mut &[u8]) -> DecodeResult<u32> {
+fn read_size4<'a>(bytes: &'a [u8]) -> (DecodeResult<u32>, &'a [u8]) {
     read_u32(bytes, "size4")
 }
 
-impl<'a, 'b: 'a> Decode<'a, 'b> for Constructor<'a> {
-    fn try_decode(bytes: &'a mut &'b [u8]) -> DecodeResult<Self> {
-        let Some((&0x00, new_bytes)) = bytes.split_first() else {
-            let format_code= FormatCode::try_decode(bytes)?;
-            return Ok(Constructor::FormatCode(format_code))
+macro_rules! tri {
+    ($T: ty, $bytes: expr) => {{
+        let (result, bytes) = <$T>::try_decode($bytes);
+        match result {
+            Ok(result) => (result, bytes),
+            Err(err) => return (Err(err), bytes),
+        }
+    }};
+}
+
+impl<'a, 'b: 'a> Decode<'b> for Constructor<'a> {
+    fn try_decode(bytes: &'b [u8]) -> (DecodeResult<Self>, &'b [u8]) {
+        let Some((&0x00, bytes)) = bytes.split_first() else {
+            let (format_code, bytes) = tri!(FormatCode, bytes);
+            return (Ok(Constructor::FormatCode(format_code)), bytes);
         };
-        *bytes = new_bytes;
-        let descriptor = Descriptor::try_decode(bytes)?;
-        let mut bytes = bytes.clone();
-        let constructor = Constructor::try_decode(&mut bytes)?;
-        Ok(Constructor::Described { descriptor: &descriptor, constructor: &constructor }, )
+        let (descriptor, bytes) = tri!(Descriptor, bytes);
+        let (constructor, bytes) = tri!(Constructor, bytes);
+        (
+            Ok(Constructor::Described {
+                descriptor: Box::new(descriptor),
+                constructor: Box::new(constructor),
+            }),
+            bytes,
+        )
     }
 }
 
-impl<'a, 'b> Decode<'a, 'b> for Descriptor<'a> {
-    fn try_decode(bytes: &'a mut &'b [u8]) -> DecodeResult<Self> {
-        let constructor = Constructor::try_decode(bytes)?;
-        Ok(Descriptor {
-            constructor,
-            untyped_bytes: bytes.clone(),
-        })
+impl<'a, 'b: 'a> Decode<'b> for Descriptor<'a> {
+    fn try_decode(bytes: &'b [u8]) -> (DecodeResult<Self>, &'b [u8]) {
+        let (constructor, bytes) = tri!(Constructor, bytes);
+        (
+            Ok(Descriptor {
+                constructor,
+                untyped_bytes: bytes,
+            }),
+            bytes,
+        )
     }
 }
