@@ -1,5 +1,4 @@
-
-pub enum Value {
+pub enum Primitive {
     Null,
     Boolean(bool),
     UByte(u8),
@@ -17,10 +16,31 @@ pub enum Value {
     Decimal128(),
     Char(char),
     Timestamp(u64),
-    Uuid(u128),
+    Uuid([u8; 16]),
     String(String),
     Symbol(Vec<u8>),
     List(Vec<Value>),
     Map(Vec<(Value, Value)>),
-    Array(Vec<Value>)
+    Array(Vec<Value>),
+}
+
+impl Into<Value> for Primitive {
+    fn into(self) -> Value {
+        Value::Primitive(self)
+    }
+}
+
+pub struct Described {
+    descriptor: Descriptor,
+    value: Value,
+}
+
+pub enum Descriptor {
+    Symbol(Vec<u8>),
+    Numeric(u32, u32),
+}
+
+pub enum Value {
+    Primitive(Primitive),
+    Described(Box<Described>),
 }

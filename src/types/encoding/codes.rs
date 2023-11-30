@@ -1,4 +1,4 @@
-use super::{read_size1, read_size4, Decode, DecodeErrorKind, DecodeResult};
+use super::{size1, size4, Decode, DecodeErrorKind, DecodeResult};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormatCode {
     Primitive(u8),
@@ -42,29 +42,29 @@ impl FormatCode {
             code => Catagory::Unimplemented(code),
         }
     }
-    pub fn size(&self, data: &[u8]) -> DecodeResult<usize> {
-        match self.catagory() {
-            Catagory::FixedWidth(FixedWidthSubcatagory::Zero) => Ok(0),
-            Catagory::FixedWidth(FixedWidthSubcatagory::One) => Ok(1),
-            Catagory::FixedWidth(FixedWidthSubcatagory::Two) => Ok(2),
-            Catagory::FixedWidth(FixedWidthSubcatagory::Four) => Ok(4),
-            Catagory::FixedWidth(FixedWidthSubcatagory::Eight) => Ok(8),
-            Catagory::FixedWidth(FixedWidthSubcatagory::Sixteen) => Ok(16),
-            Catagory::VariableWidth(VariableWidthSubcatagory::One)
-            | Catagory::Compound(CompoundSubcatagory::One)
-            | Catagory::Array(ArraySubcatagory::One) => {
-                read_size1(data).0.map(|s| (s as usize) + 1)
-            }
-            Catagory::VariableWidth(VariableWidthSubcatagory::Four)
-            | Catagory::Compound(CompoundSubcatagory::Four)
-            | Catagory::Array(ArraySubcatagory::Four) => {
-                read_size4(data).0.map(|s| (s as usize) + 4)
-            }
-            Catagory::Unimplemented(code) => {
-                Err(DecodeErrorKind::InvalidFormatCode("unimplemented subcatagory", code))
-            }
-        }
-    }
+    // pub fn size(&self, data: &[u8]) -> DecodeResult<usize> {
+    //     match self.catagory() {
+    //         Catagory::FixedWidth(FixedWidthSubcatagory::Zero) => Ok(0),
+    //         Catagory::FixedWidth(FixedWidthSubcatagory::One) => Ok(1),
+    //         Catagory::FixedWidth(FixedWidthSubcatagory::Two) => Ok(2),
+    //         Catagory::FixedWidth(FixedWidthSubcatagory::Four) => Ok(4),
+    //         Catagory::FixedWidth(FixedWidthSubcatagory::Eight) => Ok(8),
+    //         Catagory::FixedWidth(FixedWidthSubcatagory::Sixteen) => Ok(16),
+    //         Catagory::VariableWidth(VariableWidthSubcatagory::One)
+    //         | Catagory::Compound(CompoundSubcatagory::One)
+    //         | Catagory::Array(ArraySubcatagory::One) => {
+    //             read_size1(data).0.map(|s| (s as usize) + 1)
+    //         }
+    //         Catagory::VariableWidth(VariableWidthSubcatagory::Four)
+    //         | Catagory::Compound(CompoundSubcatagory::Four)
+    //         | Catagory::Array(ArraySubcatagory::Four) => {
+    //             size4(data).0.map(|s| (s as usize) + 4)
+    //         }
+    //         Catagory::Unimplemented(code) => {
+    //             Err(DecodeErrorKind::InvalidFormatCode("unimplemented subcatagory", code))
+    //         }
+    //     }
+    // }
     primitive! {
         NULL = 0x40,
         BOOLEAN_TRUE = 0x41,
@@ -140,17 +140,17 @@ pub enum ArraySubcatagory {
     Four,
 }
 
-impl Decode<'_> for FormatCode {
-    fn try_decode(bytes: &[u8]) -> (DecodeResult<Self>, &[u8]) {
-        let Some((b0, bytes)) = bytes.split_first() else {
-            return (Err(DecodeErrorKind::Expect("format code")), bytes);
-        };
-        if b0 % 0x10 != 0x0f {
-            return (Ok(FormatCode::Primitive(*b0)), bytes);
-        }
-        let Some((b1, bytes)) = bytes.split_first() else {
-            return (Err(DecodeErrorKind::Expect("ext code")), bytes);
-        };
-        (Ok(FormatCode::Ext(*b0, *b1)), bytes)
-    }
-}
+// impl Decode<'_> for FormatCode {
+//     fn decode(bytes: &[u8]) -> (DecodeResult<Self>, &[u8]) {
+//         let Some((b0, bytes)) = bytes.split_first() else {
+//             return (Err(DecodeErrorKind::Expect("format code")), bytes);
+//         };
+//         if b0 % 0x10 != 0x0f {
+//             return (Ok(FormatCode::Primitive(*b0)), bytes);
+//         }
+//         let Some((b1, bytes)) = bytes.split_first() else {
+//             return (Err(DecodeErrorKind::Expect("ext code")), bytes);
+//         };
+//         (Ok(FormatCode::Ext(*b0, *b1)), bytes)
+//     }
+// }
