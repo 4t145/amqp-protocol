@@ -13,10 +13,10 @@ impl FrameHead {
     }
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut buf = [0; 4];
-        reader.read_exact(&mut buf);
+        reader.read_exact(&mut buf)?;
         let size = u32::from_be_bytes(buf);
         let mut buf = [0; 2];
-        reader.read_exact(&mut buf);
+        reader.read_exact(&mut buf)?;
         let (doff, frame_type) = buf.into();
         Ok(FrameHead {
             size,

@@ -1,3 +1,9 @@
+use std::io;
+
+use serde::de::DeserializeOwned;
+
+use super::codes::FormatCode;
+#[derive(Debug, Clone, PartialEq)]
 pub enum Primitive {
     Null,
     Boolean(bool),
@@ -18,29 +24,45 @@ pub enum Primitive {
     Timestamp(u64),
     Uuid([u8; 16]),
     String(String),
-    Symbol(Vec<u8>),
+    Binary(Vec<u8>),
+    Symbol(Symbol),
     List(Vec<Value>),
     Map(Vec<(Value, Value)>),
     Array(Vec<Value>),
 }
 
-impl Into<Value> for Primitive {
-    fn into(self) -> Value {
-        Value::Primitive(self)
+impl From<Primitive> for Value {
+    fn from(val: Primitive) -> Self {
+        Value::Primitive(val)
     }
 }
-
+#[derive(Debug, Clone, PartialEq)]
 pub struct Described {
-    descriptor: Descriptor,
-    value: Value,
+    pub descriptor: Descriptor,
+    pub value: Value,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum Descriptor {
-    Symbol(Vec<u8>),
+    Symbol(Symbol),
     Numeric(u32, u32),
+    Reserved(Value),
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Primitive(Primitive),
     Described(Box<Described>),
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Symbol {
+    pub(crate) bytes: Vec<u8>,
+}
+
+impl Symbol {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Symbol { bytes }
+    }
+}
+

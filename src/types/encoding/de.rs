@@ -1,413 +1,376 @@
-use std::{fmt::Display, io};
+use std::{fmt, io, mem::size_of, slice::Iter, string};
 
-use serde::de;
+use crate::types::codes::FormatCode;
 
-use super::*;
-
-pub struct Deserializer<R> {
-    reader: R,
-}
-
-impl<R: io::Read> Deserializer<R> {
-    pub fn eat_type<T: Decode<'byte>>(&mut self) -> DecodeResult<T> {
-        self.reader.take(n)
-        self.eat::<T, _>(T::decode)
-    }
-    pub fn eat_constructor(&mut self) -> DecodeResult<()> {
-        self.constructor = self.eat_type::<Constructor>()?;
-        Ok(())
-    }
-    pub fn eat<T, F>(&mut self, f: F) -> DecodeResult<T>
-    where
-        F: Fn(&'byte [u8]) -> (DecodeResult<T>, &'byte [u8]),
-    {
-        let (value, bytes) = f(self.bytes);
-        self.bytes = bytes;
-        value
-    }
-    pub fn size(&self) -> DecodeResult<usize> {
-        self.constructor.size(self.bytes)
-    }
-}
+use crate::types::value::{Described, Descriptor, Primitive, Symbol, Value};
 
 #[derive(Debug)]
-pub enum Error {}
+pub enum DecodeErrorKind {
+    Expect(&'static str),
+    InvalidFormatCode(&'static str, u8),
+    InvalidChar(u32),
+    Io(io::Error),
+    FromUtf8(string::FromUtf8Error),
+    Custom(String),
+}
 
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+impl From<io::Error> for DecodeErrorKind {
+    fn from(value: io::Error) -> Self {
+        DecodeErrorKind::Io(value)
     }
 }
-impl std::error::Error for Error {}
 
-impl de::Error for Error {
+impl From<string::FromUtf8Error> for DecodeErrorKind {
+    fn from(value: string::FromUtf8Error) -> Self {
+        DecodeErrorKind::FromUtf8(value)
+    }
+}
+
+impl serde::de::Error for DecodeErrorKind {
     fn custom<T>(msg: T) -> Self
     where
-        T: Display,
+        T: fmt::Display,
     {
+        DecodeErrorKind::Custom(msg.to_string())
+    }
+}
+impl std::error::Error for DecodeErrorKind {}
+impl fmt::Display for DecodeErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
     }
 }
 
-pub struct ListAccess<'a> {
-    count: usize,
-    de: &'a mut Deserializer<'a>,
+pub type DecodeResult<T> = Result<T, DecodeErrorKind>;
+
+pub enum Constructor {
+    FormatCode(FormatCode),
+    Described {
+        descriptor: Descriptor,
+        constructor: Box<Constructor>,
+    },
 }
 
-impl<'a,> ListAccess<'a> {
-    pub fn with_count(count: usize, de: &'a mut Deserializer<'a>) -> ListAccess<'a> {
-        ListAccess { count, de }
-    }
-    pub fn empty(de: &'a mut Deserializer<'a>) -> ListAccess<'a> {
-        ListAccess { count: 0, de }
-    }
-}
-
-impl<'de, 'a: 'de> de::SeqAccess<'de> for ListAccess<'a> {
-    type Error = DecodeErrorKind;
-
-    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
-    where
-        T: de::DeserializeSeed<'de>,
-    {
-        if self.count == 0 {
-            Ok(None)
-        } else {
-            // read constructor
-            self.de.eat_constructor()?;
-            self.count -= 1;
-            seed.deserialize(&mut *self.de).map(Some)
-        }
-    }
-
-    fn size_hint(&self) -> Option<usize> {
-        Some(self.count)
-    }
-}
-impl<'de: 'byte, 'byte> de::Deserializer<'de> for &'de mut Deserializer<'byte> {
-    type Error = DecodeErrorKind;
-
-    fn deserialize_any<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
+impl Constructor {
+    pub fn construct<R: io::Read>(&self, reader: &mut R) -> DecodeResult<Value> {
         // let constructor = self.take_type::<Constructor>()?;
-        match &self.constructor {
+        let value = match self {
             Constructor::FormatCode(code) => match *code {
-                FormatCode::NULL => visitor.visit_none(),
-                FormatCode::BOOLEAN_TRUE => visitor.visit_bool(true),
-                FormatCode::BOOLEAN_FALSE => visitor.visit_bool(false),
-                FormatCode::UINT_0 => visitor.visit_u32(0),
-                FormatCode::ULONG_0 => visitor.visit_u64(0),
-                FormatCode::LIST0 => visitor.visit_seq(ListAccess::empty(self)),
-                FormatCode::BOOLEAN => visitor.visit_bool(0 == self.eat(u8("boolean"))?),
-                FormatCode::UBYTE => visitor.visit_u8(self.eat(u8("ubyte"))?),
-                FormatCode::BYTE => visitor.visit_i8(self.eat(u8("byte"))? as i8),
-                FormatCode::SMALL_UINT => visitor.visit_u32(self.eat(u8("uint"))? as u32),
-                FormatCode::SMALL_ULONG => visitor.visit_u64(self.eat(u8("ulong"))? as u64),
-                FormatCode::SMALL_INT => visitor.visit_i32(self.eat(u8("int"))? as i32),
-                FormatCode::SMALL_LONG => visitor.visit_i64(self.eat(u8("long"))? as i64),
-                FormatCode::USHORT => visitor.visit_u16(self.eat(u16("ushort"))?),
-                FormatCode::SHORT => visitor.visit_i16(self.eat(i16("short"))?),
-                FormatCode::UINT => visitor.visit_i32(self.eat(i32("uint"))?),
-                FormatCode::INT => visitor.visit_i32(self.eat(i32("int"))?),
-                FormatCode::ULONG => visitor.visit_u64(self.eat(u64("ulong"))?),
-                FormatCode::LONG => visitor.visit_i64(self.eat(i64("long"))?),
-                FormatCode::FLOAT => visitor.visit_f32(self.eat(f32("float"))?),
-                FormatCode::DOUBLE => visitor.visit_f64(self.eat(f64("double"))?),
-                FormatCode::DECIMAL32 => {
-                    todo!()
-                }
-                FormatCode::DECIMAL64 => {
-                    todo!()
-                }
-                FormatCode::DECIMAL128 => {
-                    todo!()
-                }
-                FormatCode::CHAR => {
-                    let charcode = self.eat(u32("char"))?;
-                    let char =
-                        char::from_u32(charcode).ok_or(DecodeErrorKind::InvalidChar(charcode))?;
-                    visitor.visit_char(char)
-                }
+                FormatCode::NULL => Primitive::Null,
+                FormatCode::BOOLEAN_TRUE => Primitive::Boolean(true),
+                FormatCode::BOOLEAN_FALSE => Primitive::Boolean(false),
+                FormatCode::UINT_0 => Primitive::UInt(0),
+                FormatCode::ULONG_0 => Primitive::ULong(0),
+                FormatCode::LIST0 => Primitive::List(vec![]),
+                FormatCode::BOOLEAN => Primitive::Boolean(0 == u8::decode(reader)?),
+                FormatCode::UBYTE => Primitive::UByte(u8::decode(reader)?),
+                FormatCode::BYTE => Primitive::Byte(i8::decode(reader)?),
+                FormatCode::SMALL_UINT => Primitive::UInt(u8::decode(reader)? as u32),
+                FormatCode::SMALL_ULONG => Primitive::ULong(u8::decode(reader)? as u64),
+                FormatCode::SMALL_INT => Primitive::Int(u8::decode(reader)? as i32),
+                FormatCode::SMALL_LONG => Primitive::Long(u8::decode(reader)? as i64),
+                FormatCode::USHORT => Primitive::UShort(Decode::decode(reader)?),
+                FormatCode::SHORT => Primitive::Short(Decode::decode(reader)?),
+                FormatCode::UINT => Primitive::UInt(Decode::decode(reader)?),
+                FormatCode::INT => Primitive::Int(Decode::decode(reader)?),
+                FormatCode::ULONG => Primitive::ULong(Decode::decode(reader)?),
+                FormatCode::LONG => Primitive::Long(Decode::decode(reader)?),
+                FormatCode::FLOAT => Primitive::Float(Decode::decode(reader)?),
+                FormatCode::DOUBLE => Primitive::Double(Decode::decode(reader)?),
+                FormatCode::DECIMAL32 => Primitive::Decimal32(),
+                FormatCode::DECIMAL64 => Primitive::Decimal64(),
+                FormatCode::DECIMAL128 => Primitive::Decimal128(),
+                FormatCode::CHAR => Primitive::Char(Decode::decode(reader)?),
                 FormatCode::TIMESTAMP => {
-                    todo!()
+                    todo!("timestamp is not implemented")
                 }
-                FormatCode::UUID => {
-                    let uuid = self.eat(n_bytes(16, "uuid"))?;
-                    visitor.visit_bytes(uuid)
-                }
-                FormatCode::BINARY8 => {
-                    todo!()
-                }
-                FormatCode::BINARY32 => {
-                    todo!()
-                }
+                FormatCode::UUID => Primitive::Uuid(Decode::decode(reader)?),
+                FormatCode::BINARY8 => Primitive::Binary(variable_width(size1)(reader)?),
+                FormatCode::BINARY32 => Primitive::Binary(variable_width(size4)(reader)?),
                 FormatCode::STRING8_UTF8 => {
-                    todo!()
+                    Primitive::String(String::from_utf8(variable_width(size1)(reader)?)?)
                 }
                 FormatCode::STRING32_UTF8 => {
-                    todo!()
+                    Primitive::String(String::from_utf8(variable_width(size4)(reader)?)?)
                 }
                 FormatCode::SYMBOL8 => {
-                    todo!()
+                    Primitive::Symbol(Symbol::new(variable_width(size1)(reader)?))
                 }
                 FormatCode::SYMBOL32 => {
-                    todo!()
+                    Primitive::Symbol(Symbol::new(variable_width(size4)(reader)?))
                 }
-                FormatCode::LIST8 => {
-                    todo!()
+                FormatCode::LIST8 => Primitive::List(list(size1)(reader)?),
+                FormatCode::LIST32 => Primitive::List(list(size4)(reader)?),
+                FormatCode::MAP8 => Primitive::Map(map(size1)(reader)?),
+                FormatCode::MAP32 => Primitive::Map(map(size4)(reader)?),
+                FormatCode::ARRAY8 => Primitive::Array(array_primitive(size1)(reader)?),
+                FormatCode::ARRAY32 => Primitive::Array(array_primitive(size4)(reader)?),
+                FormatCode::Primitive(p) => {
+                    return Err(DecodeErrorKind::InvalidFormatCode("primitive", p))
                 }
-                FormatCode::LIST32 => {
-                    todo!()
-                }
-                FormatCode::MAP8 => {
-                    todo!()
-                }
-                FormatCode::MAP32 => {
-                    todo!()
-                }
-                FormatCode::ARRAY8 => {
-                    todo!()
-                }
-                FormatCode::ARRAY32 => {
-                    todo!()
-                }
-                FormatCode::Primitive(_) => todo!(),
                 FormatCode::Ext(_, _) => {
-                    todo!()
+                    todo!("support ext format code")
                 }
-            },
+            }
+            .into(),
             Constructor::Described {
                 descriptor,
                 constructor,
-            } => todo!(),
+            } => {
+                let value = constructor.construct(reader)?;
+                Value::Described(Box::new(Described {
+                    descriptor: descriptor.clone(),
+                    value,
+                }))
+            }
+        };
+        Ok(value)
+    }
+}
+
+pub trait Decode<R: io::Read>: Sized {
+    fn decode(bytes: &mut R) -> DecodeResult<Self>;
+}
+
+pub fn bytes<R: std::io::Read>(n: usize) -> impl Fn(&mut R) -> DecodeResult<Vec<u8>> {
+    move |reader| {
+        let mut buf = vec![0; n];
+        reader.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+}
+
+impl<const N: usize, R: std::io::Read> Decode<R> for [u8; N] {
+    fn decode(reader: &mut R) -> DecodeResult<Self> {
+        let mut buf = [0; N];
+        reader.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+}
+
+macro_rules! rust_primitive {
+    (be_number: $($type: ident)*) => {
+        $(
+            impl<R: std::io::Read> Decode<R> for $type {
+                fn decode(reader: &mut R) -> DecodeResult<Self> {
+                    let mut buf = [0;size_of::<$type>()];
+                    reader.read_exact(&mut buf)?;
+                    let n = <$type>::from_be_bytes(buf);
+                    Ok(n)
+                }
+            }
+        )*
+    };
+}
+
+rust_primitive! {
+    be_number: u16 u32 u64 u128 i16 i32 i64 i128 f32 f64
+}
+
+impl<R: std::io::Read> Decode<R> for u8 {
+    fn decode(reader: &mut R) -> DecodeResult<Self> {
+        let mut byte = 0u8;
+        reader.read_exact(std::slice::from_mut(&mut byte))?;
+        Ok(byte)
+    }
+}
+
+impl<R: std::io::Read> Decode<R> for i8 {
+    fn decode(reader: &mut R) -> DecodeResult<Self> {
+        let mut byte = 0u8;
+        reader.read_exact(std::slice::from_mut(&mut byte))?;
+        Ok(byte as i8)
+    }
+}
+
+impl<R: std::io::Read> Decode<R> for char {
+    fn decode(reader: &mut R) -> DecodeResult<Self> {
+        let ch = u32::decode(reader)?;
+        char::from_u32(ch).ok_or(DecodeErrorKind::InvalidChar(ch))
+    }
+}
+
+fn variable_width<R: std::io::Read>(
+    size: impl Fn(&mut R) -> DecodeResult<usize>,
+) -> impl Fn(&mut R) -> DecodeResult<Vec<u8>> {
+    move |reader| {
+        let n = size(reader)?;
+        let mut buf = vec![0; n];
+        reader.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+}
+
+pub fn size1<R: io::Read>(reader: &mut R) -> DecodeResult<usize> {
+    u8::decode(reader).map(|n| n as usize)
+}
+
+pub fn size4<R: io::Read>(reader: &mut R) -> DecodeResult<usize> {
+    u32::decode(reader).map(|n| n as usize)
+}
+
+pub struct CompoundIter {
+    count: usize,
+    idx: usize,
+}
+
+impl CompoundIter {
+    pub fn new(count: usize) -> Self {
+        CompoundIter { count, idx: 0 }
+    }
+
+    pub fn next<R: io::Read>(&mut self, reader: &mut R) -> DecodeResult<Option<Value>> {
+        if self.idx < self.count {
+            let value = Value::decode(reader)?;
+            self.idx += 1;
+            Ok(Some(value))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+pub fn compound<R: std::io::Read>(
+    size: impl Fn(&mut R) -> DecodeResult<usize>,
+) -> impl Fn(&mut R) -> DecodeResult<CompoundIter> {
+    move |reader| {
+        let _sz = size(reader)?;
+        let count = size(reader)?;
+        Ok(CompoundIter::new(count))
+    }
+}
+
+pub fn list<R: io::Read>(
+    size: impl Fn(&mut R) -> DecodeResult<usize>,
+) -> impl Fn(&mut R) -> DecodeResult<Vec<Value>> {
+    let compound = compound(size);
+    move |reader| {
+        let mut iter = compound(reader)?;
+        let mut list = Vec::with_capacity(iter.count);
+        while let Some(value) = iter.next(reader)? {
+            list.push(value);
+        }
+        Ok(list)
+    }
+}
+
+pub fn map<R: io::Read>(
+    size: impl Fn(&mut R) -> DecodeResult<usize>,
+) -> impl Fn(&mut R) -> DecodeResult<Vec<(Value, Value)>> {
+    let compound = compound(size);
+    move |reader| {
+        let mut iter = compound(reader)?;
+        let mut map = Vec::with_capacity(iter.count);
+        while let (Some(key), Some(value)) = (iter.next(reader)?, iter.next(reader)?) {
+            map.push((key, value));
+        }
+        Ok(map)
+    }
+}
+
+pub struct ArrayIter {
+    count: usize,
+    idx: usize,
+    constructor: Constructor,
+}
+
+impl ArrayIter {
+    pub fn new(count: usize, constructor: Constructor) -> Self {
+        ArrayIter {
+            count,
+            idx: 0,
+            constructor,
         }
     }
 
-    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        match self.constructor {
-            Constructor::FormatCode(_) => todo!(),
-            Constructor::Described {
-                descriptor,
-                constructor,
-            } => todo!(),
+    pub fn next<R: io::Read>(&mut self, reader: &mut R) -> DecodeResult<Option<Value>> {
+        if self.idx < self.count {
+            let value = self.constructor.construct(reader)?;
+            self.idx += 1;
+            Ok(Some(value))
+        } else {
+            Ok(None)
         }
     }
+}
 
-    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
+pub fn array<R: std::io::Read>(
+    size: impl Fn(&mut R) -> DecodeResult<usize>,
+) -> impl Fn(&mut R) -> DecodeResult<ArrayIter> {
+    move |reader| {
+        let _sz = size(reader)?;
+        let count = size(reader)?;
+        let constructor = Constructor::decode(reader)?;
+        Ok(ArrayIter::new(count, constructor))
     }
+}
 
-    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
+pub fn array_primitive<R: std::io::Read>(
+    size: impl Fn(&mut R) -> DecodeResult<usize>,
+) -> impl Fn(&mut R) -> DecodeResult<Vec<Value>> {
+    let array = array(size);
+    move |reader| {
+        let mut iter = array(reader)?;
+        let mut list = Vec::with_capacity(iter.count);
+        while let Some(value) = iter.next(reader)? {
+            list.push(value);
+        }
+        Ok(list)
     }
+}
 
-    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
+impl<R: io::Read> Decode<R> for Constructor {
+    fn decode(reader: &mut R) -> DecodeResult<Self> {
+        let byte = u8::decode(reader)?;
+        match byte {
+            0x00 => {
+                let descriptor = Descriptor::decode(reader)?;
+                let constructor = Constructor::decode(reader)?;
+                Ok(Constructor::Described {
+                    descriptor,
+                    constructor: Box::new(constructor),
+                })
+            }
+            code if code & 0x0f != 0x0f => Ok(Constructor::FormatCode(FormatCode::Primitive(code))),
+            code => {
+                let ext = u8::decode(reader)?;
+                Ok(Constructor::FormatCode(FormatCode::Ext(code, ext)))
+            }
+        }
     }
+}
 
-    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
+impl<'a, R: io::Read + 'a> Decode<R> for Value {
+    fn decode(reader: &mut R) -> DecodeResult<Self> {
+        let constructor = Constructor::decode(reader)?;
+        constructor.construct(reader)
     }
+}
 
-    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
+impl<R: io::Read> Decode<R> for Descriptor {
+    fn decode(reader: &mut R) -> DecodeResult<Self> {
+        let constructor = Constructor::decode(reader)?;
+        let descriptor = constructor.construct(reader)?;
+        match descriptor {
+            Value::Primitive(Primitive::Symbol(symbol)) => Ok(Descriptor::Symbol(symbol)),
+            Value::Primitive(Primitive::ULong(bytes)) => {
+                let domain_id = (bytes >> 32) as u32;
+                let descriptor_id = bytes as u32;
+                Ok(Descriptor::Numeric(domain_id, descriptor_id))
+            }
+            reserved => Ok(Descriptor::Reserved(reserved)),
+        }
     }
+}
 
-    fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
+impl Value {
+    #[inline]
+    pub fn from_reader<R: io::Read>(reader: &mut R) -> DecodeResult<Self> {
+        Self::decode(reader)
     }
-
-    fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_unit_struct<V>(
-        self,
-        name: &'static str,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_newtype_struct<V>(
-        self,
-        name: &'static str,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_tuple_struct<V>(
-        self,
-        name: &'static str,
-        len: usize,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_struct<V>(
-        self,
-        name: &'static str,
-        fields: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        // visitor.visit_newtype_struct(deserializer)
-        todo!()
-    }
-
-    fn deserialize_enum<V>(
-        self,
-        name: &'static str,
-        variants: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
+    #[inline]
+    pub fn from_bytes(bytes: &[u8]) -> DecodeResult<Self> {
+        let mut reader = bytes;
+        Self::from_reader(&mut reader)
     }
 }
