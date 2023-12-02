@@ -13,6 +13,12 @@ macro_rules! primitive {
 }
 
 impl FormatCode {
+    pub const fn into_u8(self) -> u8 {
+        match self {
+            FormatCode::Primitive(b) => b,
+            FormatCode::Ext(b1, _) => b1,
+        }
+    }
     pub fn is_ext_type(&self) -> bool {
         matches!(self, FormatCode::Ext(_, _))
     }

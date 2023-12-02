@@ -129,7 +129,7 @@ impl Constructor {
 }
 
 pub trait Decode<R: io::Read>: Sized {
-    fn decode(bytes: &mut R) -> DecodeResult<Self>;
+    fn decode(reader: &mut R) -> DecodeResult<Self>;
 }
 
 pub fn bytes<R: std::io::Read>(n: usize) -> impl Fn(&mut R) -> DecodeResult<Vec<u8>> {
