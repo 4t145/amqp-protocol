@@ -34,7 +34,7 @@ impl<W: io::Write> Encode<W> for FormatCode {
 
 impl<W: io::Write> Encode<W> for Symbol {
     fn encode(&self, writer: &mut W) -> io::Result<()> {
-        self.bytes.as_slice().encode(writer)
+        self.bytes.as_ref().encode(writer)
     }
 }
 
@@ -214,7 +214,7 @@ impl<W: io::Write> Encode<W> for Primitive {
                 { FormatCode::SYMBOL8.into_u8() },
                 { FormatCode::SYMBOL32.into_u8() },
                 _,
-            >(writer, s.bytes.len(), &s.bytes.as_slice()),
+            >(writer, s.bytes.len(), &s.bytes.as_ref()),
             Primitive::List(l) => {
                 let count = l.len();
                 if count == 0 {

@@ -1,5 +1,5 @@
 use std::io::{self, Read, Write};
-
+use bytes::{BufMut, BytesMut, Bytes};
 pub struct FrameHead {
     pub size: u32,
     pub doff: u8,
@@ -11,6 +11,7 @@ impl FrameHead {
         writer.write_all(&self.size.to_be_bytes())?;
         writer.write_all(&[self.doff, self.frame_type])
     }
+    
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut buf = [0; 4];
         reader.read_exact(&mut buf)?;

@@ -6,3 +6,4 @@ pub mod encoding;
 pub mod value;
 pub mod codes;
 pub mod serde;
+pub mod describe;

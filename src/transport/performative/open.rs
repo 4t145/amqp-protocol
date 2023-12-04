@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
-use crate::transport::definitions::Fields;
+use serde::{Serialize, Deserialize};
 
+use crate::{derive_descriptor, transport::definitions::Fields};
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Open {
     /// the id of the source container
     pub(crate) container_id: String,
@@ -18,3 +20,4 @@ pub struct Open {
     pub(crate) properties: Fields,
 }
 
+derive_descriptor! {Open = 0x00000000:0x00000010}

@@ -1,5 +1,6 @@
-use std::io::{self, Write, Read};
+use std::io::{self, Read, Write};
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct Version {
     pub major: u8,
     pub minor: u8,
@@ -7,6 +8,11 @@ pub struct Version {
 }
 
 impl Version {
+    pub const V_1_0_0: Self = Version {
+        major: 1,
+        minor: 0,
+        revision: 0,
+    };
     pub fn write<W: Write>(self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&[
             b'A',
@@ -20,7 +26,7 @@ impl Version {
         ])
     }
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let mut buf = [0;8];
+        let mut buf = [0; 8];
         reader.read_exact(&mut buf);
         if &buf[0..5] == b"AMQP\xd0" {
             Ok(Version {

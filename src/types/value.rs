@@ -1,9 +1,9 @@
-use std::io;
+use std::{borrow::Cow, io};
 
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::codes::FormatCode;
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum Primitive {
     Null,
     Boolean(bool),
@@ -36,33 +36,33 @@ impl From<Primitive> for Value {
         Value::Primitive(val)
     }
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Described {
     pub descriptor: Descriptor,
     pub value: Value,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum Descriptor {
     Symbol(Symbol),
     Numeric(u32, u32),
     Reserved(Value),
 }
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Value {
     Primitive(Primitive),
     Described(Box<Described>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol {
-    pub(crate) bytes: Vec<u8>,
+    pub(crate) bytes: Cow<'static, [u8]>,
 }
 
 impl Symbol {
-    pub fn new(bytes: Vec<u8>) -> Self {
-        Symbol { bytes }
+    pub fn new(bytes: impl Into<Cow<'static, [u8]>>) -> Self {
+        Symbol {
+            bytes: bytes.into(),
+        }
     }
 }
-

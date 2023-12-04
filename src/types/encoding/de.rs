@@ -14,6 +14,23 @@ pub enum DecodeErrorKind {
     Custom(String),
 }
 
+// impl Into<io::Error> for DecodeErrorKind {
+//     fn into(self) -> io::Error {
+//         match self {
+//             DecodeErrorKind::Io(err) => err,
+//             _ => io::Error::new(io::ErrorKind::Other, self),
+//         }
+//     }
+// }
+
+impl From<DecodeErrorKind> for io::Error {
+    fn from(value: DecodeErrorKind) -> Self {
+        match value {
+            DecodeErrorKind::Io(err) => err,
+            _ => io::Error::new(io::ErrorKind::Other, value),
+        }
+    }
+}
 impl From<io::Error> for DecodeErrorKind {
     fn from(value: io::Error) -> Self {
         DecodeErrorKind::Io(value)

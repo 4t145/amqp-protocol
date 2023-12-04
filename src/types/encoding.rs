@@ -33,8 +33,6 @@ pub mod de;
 pub mod enc;
 
 
-
-
 #[cfg(test)]
 #[test]
 fn test_decode() {
