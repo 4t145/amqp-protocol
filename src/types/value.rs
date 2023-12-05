@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::codes::FormatCode;
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub enum Primitive {
+pub enum Primitive<'a> {
     Null,
     Boolean(bool),
     UByte(u8),
@@ -23,46 +23,54 @@ pub enum Primitive {
     Char(char),
     Timestamp(u64),
     Uuid([u8; 16]),
-    String(String),
-    Binary(Vec<u8>),
-    Symbol(Symbol),
-    List(Vec<Value>),
-    Map(Vec<(Value, Value)>),
-    Array(Vec<Value>),
+    String(Cow<'a, str>),
+    Binary(Cow<'a, [u8]>),
+    Symbol(Symbol<'a>),
+    List(Vec<Value<'a>>),
+    Map(Vec<(Value<'a>, Value<'a>)>),
+    Array(Vec<Value<'a>>),
 }
 
-impl From<Primitive> for Value {
-    fn from(val: Primitive) -> Self {
+impl<'a> From<Primitive<'a>> for Value<'a> {
+    fn from(val: Primitive<'a>) -> Self {
         Value::Primitive(val)
     }
 }
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct Described {
-    pub descriptor: Descriptor,
-    pub value: Value,
+pub struct Described<'a> {
+    pub descriptor: Descriptor<'a>,
+    pub value: Value<'a>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub enum Descriptor {
-    Symbol(Symbol),
+pub enum Descriptor<'a> {
+    Symbol(Symbol<'a>),
     Numeric(u32, u32),
-    Reserved(Value),
+    Reserved(Value<'a>),
 }
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum Value {
-    Primitive(Primitive),
-    Described(Box<Described>),
+pub enum Value<'a> {
+    Primitive(Primitive<'a>),
+    Described(Box<Described<'a>>),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Symbol {
-    pub(crate) bytes: Cow<'static, [u8]>,
+pub struct Symbol<'a> {
+    pub(crate) bytes: Cow<'a, [u8]>,
 }
 
-impl Symbol {
-    pub fn new(bytes: impl Into<Cow<'static, [u8]>>) -> Self {
+impl<'a> Symbol<'a> {
+    pub fn new(bytes: impl Into<Cow<'a, [u8]>>) -> Self {
         Symbol {
             bytes: bytes.into(),
         }
     }
+}
+#[derive(Debug)]
+pub enum Constructor<'a> {
+    FormatCode(FormatCode),
+    Described {
+        descriptor: Descriptor<'a>,
+        constructor: Box<Constructor<'a>>,
+    },
 }

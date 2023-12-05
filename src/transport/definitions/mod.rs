@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use crate::types::value::{Symbol, Value};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Fields(HashMap<Symbol, Value>);
+pub struct Fields<'a>(HashMap<Symbol<'a>, Value<'a>>);
 
 pub struct Handle(u32);
 

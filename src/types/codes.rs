@@ -1,7 +1,23 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormatCode {
     Primitive(u8),
     Ext(u8, u8),
+}
+
+impl std::fmt::Debug for FormatCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Primitive(arg0) => f
+                .debug_tuple("Primitive")
+                .field(&format_args!("0x{:02X}", arg0))
+                .finish(),
+            Self::Ext(arg0, arg1) => f
+                .debug_tuple("Ext")
+                .field(&format_args!("0x{:02X}", arg0))
+                .field(&format_args!("0x{:02X}", arg1))
+                .finish(),
+        }
+    }
 }
 
 macro_rules! primitive {

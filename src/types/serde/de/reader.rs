@@ -1,16 +1,15 @@
 use serde::de;
 use std::io;
 
-use crate::types::{
-    codes::FormatCode,
-    encoding::de::{Constructor, Decode, DecodeErrorKind},
-};
+use crate::types::{codes::FormatCode, value::Constructor, encoding::de::reader::Decode};
+
+use super::DeserializeError;
 pub struct ReaderDeserializer<R> {
     pub(crate) reader: R,
 }
 
-impl<'de, R: io::Read> de::Deserializer<'de> for ReaderDeserializer<R> {
-    type Error = DecodeErrorKind;
+impl<'de, R: io::Read + 'de> de::Deserializer<'de> for ReaderDeserializer<R> {
+    type Error = DeserializeError;
 
     fn deserialize_any<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where

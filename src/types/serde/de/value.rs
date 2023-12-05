@@ -1,14 +1,15 @@
-use std::{fmt::Display, io, vec::IntoIter};
+use std::{fmt::Display, io, vec::IntoIter, borrow::Cow};
 
 use serde::de::{self, IntoDeserializer};
 
 use crate::types::{
-    encoding::de::DecodeErrorKind,
     value::{Primitive, Value},
 };
 
-impl<'de> de::Deserializer<'de> for Value {
-    type Error = DecodeErrorKind;
+use super::DeserializeError;
+
+impl<'de, 'v: 'de> de::Deserializer<'de> for Value<'v> {
+    type Error = DeserializeError;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
@@ -34,7 +35,12 @@ impl<'de> de::Deserializer<'de> for Value {
                 Primitive::Char(c) => visitor.visit_char(c),
                 Primitive::Timestamp(t) => visitor.visit_u64(t),
                 Primitive::Uuid(u) => visitor.visit_bytes(&u),
-                Primitive::String(s) => visitor.visit_string(s),
+                Primitive::String(s) => {
+                    match s {
+                        Cow::Borrowed(s) => visitor.visit_borrowed_str(s),
+                        Cow::Owned(s) => visitor.visit_string(s),
+                    }
+                },
                 Primitive::Binary(b) => visitor.visit_bytes(&b),
                 Primitive::Symbol(s) => visitor.visit_bytes(&s.bytes),
                 Primitive::List(l) => {
@@ -142,7 +148,7 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        self.deserialize_any(visitor)
     }
 
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -274,7 +280,7 @@ impl<'de> de::Deserializer<'de> for Value {
     }
 }
 
-impl<'de> de::IntoDeserializer<'de, DecodeErrorKind> for Value {
+impl<'de, 'v: 'de> de::IntoDeserializer<'de, DeserializeError> for Value<'v> {
     type Deserializer = Self;
 
     fn into_deserializer(self) -> Self::Deserializer {
@@ -302,25 +308,25 @@ impl de::Error for Error {
     }
 }
 
-pub struct ListAccess {
-    list: IntoIter<Value>,
+pub struct ListAccess<'a> {
+    list: IntoIter<Value<'a>>,
 }
 
-impl ListAccess {
-    pub fn new(list: Vec<Value>) -> ListAccess {
+impl<'a> ListAccess<'a> {
+    pub fn new(list: Vec<Value<'a>>) -> ListAccess {
         ListAccess {
             list: list.into_iter(),
         }
     }
-    pub fn empty() -> ListAccess {
+    pub fn empty() -> ListAccess<'a> {
         ListAccess {
             list: Vec::new().into_iter(),
         }
     }
 }
 
-impl<'de> de::SeqAccess<'de> for ListAccess {
-    type Error = DecodeErrorKind;
+impl<'de, 'a: 'de> de::SeqAccess<'de> for ListAccess<'a> {
+    type Error = DeserializeError;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
     where
@@ -338,13 +344,13 @@ impl<'de> de::SeqAccess<'de> for ListAccess {
     }
 }
 
-pub struct MapAccess {
-    map: IntoIter<(Value, Value)>,
-    value: Option<Value>,
+pub struct MapAccess<'a> {
+    map: IntoIter<(Value<'a>, Value<'a>)>,
+    value: Option<Value<'a>>,
 }
 
-impl MapAccess {
-    pub fn new(map: Vec<(Value, Value)>) -> Self {
+impl<'a> MapAccess<'a> {
+    pub fn new(map: Vec<(Value<'a>, Value<'a>)>) -> Self {
         Self {
             map: map.into_iter(),
             value: None,
@@ -352,8 +358,8 @@ impl MapAccess {
     }
 }
 
-impl<'de> de::MapAccess<'de> for MapAccess {
-    type Error = DecodeErrorKind;
+impl<'de, 'a: 'de> de::MapAccess<'de> for MapAccess<'a> {
+    type Error = DeserializeError;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
     where

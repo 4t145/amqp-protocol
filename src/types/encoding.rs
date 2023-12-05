@@ -38,7 +38,7 @@ pub mod enc;
 fn test_decode() {
     use serde::Deserialize;
 
-    use crate::types::{value::Value, encoding::de::Decode};
+    use crate::types::{value::Value, encoding::de::{reader::Decode, slice::View}};
 
     let code = b"\x00\xA1\x03URL\xA1\x1Ehttp://example.org/hello-world";
     let mut reader = code.as_ref();
@@ -56,5 +56,17 @@ fn test_decode() {
 
     println!("{:?}", value);
     let booklist = BookList::deserialize(value).unwrap();
+    dbg!(booklist);
+
+    #[derive(serde::Serialize, serde::Deserialize, Debug)]
+    struct BookListRef<'a> {
+        title: &'a str,
+        authors: Vec<&'a str>,
+        isbn: Option<&'a str>,
+    }
+
+    let value = Value::view(&mut code.as_ref()).unwrap();
+    println!("{:?}", value);
+    let booklist = BookListRef::deserialize(value).unwrap();
     dbg!(booklist);
 }

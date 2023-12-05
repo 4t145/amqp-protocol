@@ -9,4 +9,5 @@ edition = "2021"
 bytes = "1.5.0"
 decimal = "2.1.0"
 serde = {version = "1.0.193", features = ["derive"]}
+tokio = { version = "1.34.0", features = ["full"] }
 uuid = { version = "1.6.1", features = ["serde"] }

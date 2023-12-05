@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::{derive_descriptor, transport::definitions::Fields};
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Open {
+pub struct Open<'a> {
     /// the id of the source container
     pub(crate) container_id: String,
     /// the name of the target host
@@ -17,7 +17,7 @@ pub struct Open {
     pub(crate) incoming_locales: Vec<String>,
     pub(crate) offered_capabilities: Vec<String>,
     pub(crate) desired_capabilities: Vec<String>,
-    pub(crate) properties: Fields,
+    pub(crate) properties: Fields<'a>,
 }
 
-derive_descriptor! {Open = 0x00000000:0x00000010}
+derive_descriptor! {Open<'_> = 0x00000000:0x00000010}
