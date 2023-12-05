@@ -26,8 +26,8 @@ pub trait View<'a>: Sized + 'a {
 
 impl<'a> View<'a> for Value<'a> {
     fn view(buffer: &mut &'a [u8]) -> io::Result<Self> {
-        let constructor = dbg!(Constructor::view(buffer)?);
-        dbg!(constructor.construct_slice(buffer))
+        let constructor = Constructor::view(buffer)?;
+        constructor.construct_slice(buffer)
     }
 }
 
@@ -228,9 +228,7 @@ fn array<'a>(
 ) -> impl Fn(&mut &'a [u8]) -> io::Result<ArrayIter<'a>> {
     move |reader| {
         let _sz = size(reader)?;
-        dbg!(_sz);
         let count = size(reader)?;
-        dbg!(count);
         let constructor = Constructor::view(reader)?;
         Ok(ArrayIter::new(count, constructor))
     }

@@ -68,5 +68,9 @@ fn test_decode() {
     let value = Value::view(&mut code.as_ref()).unwrap();
     println!("{:?}", value);
     let booklist = BookListRef::deserialize(value).unwrap();
+    let title_ptr = booklist.title.as_ptr();
+    let title_mem_raw = unsafe {code.as_ptr().add(25)};
+    dbg!(title_ptr, title_mem_raw);
+    assert_eq!(title_ptr, title_mem_raw);
     dbg!(booklist);
 }
