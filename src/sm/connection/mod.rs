@@ -1,4 +1,3 @@
-
 //! - START HDR HDR
 //！- HDR_RCVD HDR OPEN
 //！- HDR_SENT OPEN HDR
@@ -14,49 +13,17 @@
 //！- DISCARDING - * TCP Close for Write
 //！- END - - TCP Close
 
-
-pub struct Start {
-
-}
-
-
-
-pub struct HdrRcvd {
-
-}
-pub struct HdrSent {
-
-}
-pub struct HdrExch {
-
-}
-pub struct OpenRcvd {
-
-}
-pub struct OpenSent {
-
-}
-pub struct OpenPipe {
-
-}
-pub struct ClosePipe {
-
-}
-pub struct OcPipe {
-
-}
-pub struct Opened {
-
-}
-pub struct CloseRcvd {
-
-}
-pub struct CloseSent {
-
-}
-pub struct Discarding {
-
-}
-pub struct End {
-
-}
+pub struct Start {}
+pub struct HdrRcvd {}
+pub struct HdrSent {}
+pub struct HdrExch {}
+pub struct OpenRcvd {}
+pub struct OpenSent {}
+pub struct OpenPipe {}
+pub struct ClosePipe {}
+pub struct OcPipe {}
+pub struct Opened {}
+pub struct CloseRcvd {}
+pub struct CloseSent {}
+pub struct Discarding {}
+pub struct End {}

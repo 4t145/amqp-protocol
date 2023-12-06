@@ -1,6 +1,6 @@
 use tokio::io::{self, AsyncRead, AsyncReadExt, AsyncWrite};
 
-use crate::transport::version::Version;
+use crate::transport::{version::Version, framing::FrameHeader};
 
 pub trait AsyncDecode<R: AsyncRead>: Sized {
     async fn async_decode(reader: &mut R) -> io::Result<Self>;
@@ -24,7 +24,7 @@ impl<const N: usize, R: AsyncRead + Unpin> AsyncDecode<R> for [u8; N] {
     }
 }
 
-// protocal types
+// protocol types
 //
 //
 //
@@ -38,3 +38,19 @@ impl<R: tokio::io::AsyncRead + Unpin> AsyncDecode<R> for Version {
     }
 }
 
+// Framing
+
+impl<R: tokio::io::AsyncRead + Unpin> AsyncDecode<R> for FrameHeader {
+    async fn async_decode(reader: &mut R) -> io::Result<Self> {
+        let size = reader.read_u32().await?;
+        let doff = reader.read_u8().await?;
+        let frame_type = reader.read_u8().await?;
+        let ext = reader.read_u16().await?;
+        Ok(FrameHeader {
+            size,
+            doff,
+            frame_type,
+            ext,
+        })
+    }
+}

@@ -2,11 +2,17 @@ pub mod reader;
 pub mod value;
 use std::io;
 
-use crate::types::value::Value;
+use crate::types::{encoding::de::slice::View, value::Value};
 
 use self::reader::ReaderDeserializer;
 #[derive(Debug)]
 pub struct DeserializeError(io::Error);
+
+impl DeserializeError {
+    pub fn into_inner(self) -> io::Error {
+        return self.0;
+    }
+}
 
 impl std::fmt::Display for DeserializeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -15,7 +21,6 @@ impl std::fmt::Display for DeserializeError {
 }
 
 impl std::error::Error for DeserializeError {
-    
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(&self.0)
     }
@@ -56,9 +61,9 @@ where
     T::deserialize(ReaderDeserializer { reader }).map_err(Into::into)
 }
 
-pub fn from_slice<T>(slice: &[u8]) -> io::Result<T>
+pub fn from_slice<'de, T>(mut slice: &'de [u8]) -> io::Result<T>
 where
-    T: serde::de::DeserializeOwned,
+    T: serde::de::Deserialize<'de>,
 {
-    T::deserialize(ReaderDeserializer { reader: slice }).map_err(Into::into)
+    T::deserialize(Value::view(&mut slice)?).map_err(Into::into)
 }
