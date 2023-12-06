@@ -1,4 +1,4 @@
-use super::value::Descriptor;
+use super::value::{Descriptor, Construct};
 
 pub trait Described {
     const DESCRIPTOR: Descriptor<'static>;
@@ -11,4 +11,15 @@ macro_rules! derive_descriptor {
             const DESCRIPTOR: $crate::types::value::Descriptor<'static> = $crate::types::value::Descriptor::Numeric($domain, $code);
         }
     };
+}
+
+pub struct Describe<T: Described>(T);
+
+impl<T: Described + Construct> Construct for Describe<T> {
+    fn constructor() -> super::value::Constructor<'static> {
+        super::value::Constructor::Described {
+            descriptor: T::DESCRIPTOR,
+            constructor: Box::new(T::constructor()),
+        }
+    }
 }

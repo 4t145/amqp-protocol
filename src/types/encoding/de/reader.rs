@@ -2,7 +2,7 @@ use std::{fmt, io, mem::size_of, slice::Iter, string};
 
 use crate::types::codes::FormatCode;
 
-use crate::types::value::{Constructor, Described, Descriptor, Primitive, Symbol, Value};
+use crate::types::value::{Binary, Constructor, Described, Descriptor, Primitive, Symbol, Value};
 
 use super::{ArrayIter, CompoundIter};
 
@@ -40,8 +40,12 @@ impl Constructor<'static> {
                     todo!("timestamp is not implemented")
                 }
                 FormatCode::UUID => Primitive::Uuid(Decode::decode(reader)?),
-                FormatCode::BINARY8 => Primitive::Binary(variable_width(size1)(reader)?.into()),
-                FormatCode::BINARY32 => Primitive::Binary(variable_width(size4)(reader)?.into()),
+                FormatCode::BINARY8 => {
+                    Primitive::Binary(Binary(variable_width(size1)(reader)?.into()))
+                }
+                FormatCode::BINARY32 => {
+                    Primitive::Binary(Binary(variable_width(size4)(reader)?.into()))
+                }
                 FormatCode::STRING8_UTF8 => Primitive::String(
                     String::from_utf8(variable_width(size1)(reader)?)
                         .map_err(io::Error::other)?

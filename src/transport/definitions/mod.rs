@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::types::value::{Symbol, Value};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Fields<'a>(HashMap<Symbol<'a>, Value<'a>>);
 
 pub struct Handle(u32);

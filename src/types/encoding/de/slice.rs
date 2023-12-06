@@ -6,7 +6,7 @@ use super::{
 };
 use crate::types::{
     codes::FormatCode,
-    value::{Constructor, Described, Descriptor, Primitive, Symbol, Value},
+    value::{Constructor, Described, Descriptor, Primitive, Symbol, Value, Binary},
 };
 use bytes::Bytes;
 
@@ -101,8 +101,8 @@ impl<'a> Constructor<'a> {
                     todo!("timestamp is not implemented")
                 }
                 FormatCode::UUID => Primitive::Uuid(Decode::decode(buffer)?),
-                FormatCode::BINARY8 => Primitive::Binary(variable_width(size1)(buffer)?.into()),
-                FormatCode::BINARY32 => Primitive::Binary(variable_width(size4)(buffer)?.into()),
+                FormatCode::BINARY8 => Primitive::Binary(Binary(variable_width(size1)(buffer)?.into())),
+                FormatCode::BINARY32 => Primitive::Binary(Binary(variable_width(size4)(buffer)?.into())),
                 FormatCode::STRING8_UTF8 => {
                     Primitive::String(String::from_utf8_lossy(variable_width(size1)(buffer)?))
                 }
