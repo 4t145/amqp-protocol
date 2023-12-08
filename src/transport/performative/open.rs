@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{derive_descriptor, transport::definitions::Fields};
+use crate::{amqp_type, transport::definitions::Fields};
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Open<'a> {
@@ -38,4 +38,4 @@ impl<'a> Default for Open<'a> {
     }
 }
 
-derive_descriptor! {Open<'_> = 0x00000000:0x00000010}
+amqp_type! {Open<'_> = 0x00000000:0x00000010}

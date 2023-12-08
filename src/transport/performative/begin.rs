@@ -1,6 +1,10 @@
-use crate::{derive_descriptor, transport::definitions::*, types::value::Symbol};
+use serde::{Deserialize, Serialize};
+
+use crate::{amqp_type, transport::definitions::*, types::value::Symbol};
 
 // descriptor name="amqp:begin:list" code="0x00000000:0x00000011"
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Begin<'a> {
     remote_channel: u16,
     next_outgoing_i: TransferNumber,
@@ -12,4 +16,4 @@ pub struct Begin<'a> {
     properties: Fields<'a>,
 }
 
-derive_descriptor! {Begin<'_> = 0x00000000:0x00000011}
+amqp_type! {Begin<'_> = 0x00000000:0x00000011}

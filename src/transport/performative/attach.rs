@@ -1,8 +1,8 @@
-use crate::derive_descriptor;
+use crate::amqp_type;
 
-pub struct Attach {
+// pub struct Attach {
     
-}
+// }
 
 
-derive_descriptor! {Attach = 0x00000000:0x00000012}
+// derive_descriptor! {Attach = 0x00000000:0x00000012}
