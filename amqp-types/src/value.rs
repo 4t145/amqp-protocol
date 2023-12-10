@@ -1,7 +1,7 @@
 use bytes::Bytes;
 
 use crate::{constructor::Constructor, data::Data, primitives::Primitive};
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Value {
     pub constructor: Constructor,
     pub data: Bytes,

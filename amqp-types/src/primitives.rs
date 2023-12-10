@@ -1,7 +1,6 @@
 use std::str::Utf8Error;
 
 use bytes::Bytes;
-use serde::Deserialize;
 
 use crate::{codec::Decode, constructor::Constructor, value::Value};
 
@@ -53,7 +52,7 @@ impl AmqpString {
 
 pub struct Binary(pub(crate) Bytes);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol(pub(crate) Bytes);
 
 #[derive(Debug, Clone)]

@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use serde::Deserialize;
 
 use crate::{codec::BytesExt, constructor::Constructor};
 
@@ -169,78 +168,6 @@ impl FormatCode {
                 None
             }
         }
-    }
-    pub fn visit<'data, T: Deserialize<'data>>(&self, data: &'data [u8]) -> T {
-        todo!()
-    }
-
-    pub fn visit_u8(&self, data: Bytes) -> Option<u8> {
-        (data.len() >= std::mem::size_of::<u8>() && matches!(self, &FormatCode::UBYTE))
-            .then(|| data[0])
-    }
-
-    pub fn visit_u16(&self, data: Bytes) -> Option<u16> {
-        (data.len() >= std::mem::size_of::<u16>() && matches!(self, &FormatCode::USHORT))
-            .then(|| u16::from_be_bytes([data[0], data[1]]))
-    }
-
-    pub fn visit_u32(&self, data: Bytes) -> Option<u32> {
-        (data.len() >= std::mem::size_of::<u32>() && matches!(self, &FormatCode::UINT))
-            .then(|| u32::from_be_bytes([data[0], data[1], data[2], data[3]]))
-    }
-
-    pub fn visit_u64(&self, data: Bytes) -> Option<u64> {
-        (data.len() >= std::mem::size_of::<u64>() && matches!(self, &FormatCode::ULONG)).then(
-            || {
-                u64::from_be_bytes([
-                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-                ])
-            },
-        )
-    }
-
-    pub fn visit_i8(&self, data: Bytes) -> Option<i8> {
-        (data.len() >= std::mem::size_of::<i8>() && matches!(self, &FormatCode::BYTE))
-            .then(|| data[0] as i8)
-    }
-
-    pub fn visit_i16(&self, data: Bytes) -> Option<i16> {
-        (data.len() >= std::mem::size_of::<i16>() && matches!(self, &FormatCode::SHORT))
-            .then(|| i16::from_be_bytes([data[0], data[1]]))
-    }
-
-    pub fn visit_i32(&self, data: Bytes) -> Option<i32> {
-        (data.len() >= std::mem::size_of::<i32>() && matches!(self, &FormatCode::INT))
-            .then(|| i32::from_be_bytes([data[0], data[1], data[2], data[3]]))
-    }
-
-    pub fn visit_i64(&self, data: Bytes) -> Option<i64> {
-        (data.len() >= std::mem::size_of::<i64>() && matches!(self, &FormatCode::LONG)).then(|| {
-            i64::from_be_bytes([
-                data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-            ])
-        })
-    }
-
-    pub fn visit_f32(&self, data: Bytes) -> Option<f32> {
-        (data.len() >= std::mem::size_of::<f32>() && matches!(self, &FormatCode::FLOAT))
-            .then(|| f32::from_be_bytes([data[0], data[1], data[2], data[3]]))
-    }
-
-    pub fn visit_f64(&self, data: Bytes) -> Option<f64> {
-        (data.len() >= std::mem::size_of::<f64>() && matches!(self, &FormatCode::DOUBLE)).then(
-            || {
-                f64::from_be_bytes([
-                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-                ])
-            },
-        )
-    }
-
-    pub fn visit_char(&self, data: Bytes) -> Option<char> {
-        (data.len() >= std::mem::size_of::<char>() && matches!(self, &FormatCode::CHAR))
-            .then(|| char::from_u32(u32::from_be_bytes([data[0], data[1], data[2], data[3]])))
-            .flatten()
     }
 }
 

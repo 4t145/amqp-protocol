@@ -1,7 +1,7 @@
 use bytes::Bytes;
 
 use crate::{primitives::Symbol, value::Value};
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Descriptor {
     Symbol(Symbol),
     Numeric(u64),

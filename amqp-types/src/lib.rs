@@ -13,7 +13,8 @@ pub mod types;
 pub use codes::FormatCode;
 pub use constructor::Constructor;
 pub use descriptor::Descriptor;
-pub use primitives::Primitive;
+pub use primitives::*;
+pub use value::Value;
 
 pub use types::Types;
 // re-export

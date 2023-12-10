@@ -7,7 +7,4 @@ edition = "2021"
 
 [dependencies]
 bytes = { workspce = true }
-decimal = { workspce = true }
-serde = { workspce = true }
-tokio = { workspce = true, features = ["net"] }
 amqp_types_macro = { path = "../amqp-types-macro" }

@@ -9,25 +9,53 @@ pub fn derive_types(input: TokenStream) -> TokenStream {
 
     let name = input.ident;
     let data = &input.data;
-    let fields = match data {
-        Data::Struct(data) => &data.fields,
+    let data = match data {
+        Data::Struct(data) => data,
         _ => panic!("Types can only be derived for structs"),
     };
 
     let generics = input.generics.clone();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let fields_name = fields
+    let fields_name = data
+        .fields
         .iter()
         .enumerate()
         .map(|(idx, f)| {
             if let Some(ident) = &f.ident {
                 quote!(#ident)
             } else {
-                quote!(#idx)
+                let index = syn::Index::from(idx);
+                quote!(#index)
             }
         })
         .collect::<Vec<_>>();
-    let fields_count = fields.len();
+    let from_primitive_block = match &data.fields {
+        syn::Fields::Named(named) => {
+            let fields = named.named.iter().map(|f| f.ident.clone());
+            quote! {
+                Self {
+                    #(
+                        #fields: amqp_types::types::Types::from_primitive(iter.next()?.construct()?)?,
+                    )*
+                }
+            }
+        }
+        syn::Fields::Unnamed(unnamed) => {
+            let types = unnamed.unnamed.iter().map(|_f| quote!());
+            quote!(
+                Self (
+                    #(
+                        #types amqp_types::types::Types::from_primitive(iter.next()?.construct()?)?,
+                    )*
+                )
+            )
+        }
+        syn::Fields::Unit => {
+            quote!(Self)
+        }
+    };
+
+    let fields_count = data.fields.len();
     let mut descriptor = quote!();
     input
         .attrs
@@ -84,13 +112,9 @@ pub fn derive_types(input: TokenStream) -> TokenStream {
 
             fn from_primitive(value: amqp_types::Primitive) -> Option<Self> {
                 match value {
-                    Primitive::List(l) => {
+                    amqp_types::Primitive::List(l) => {
                         let mut iter = l.into_iter();
-                        Some(Self {
-                            #(
-                                #fields_name: amqp_types::types::Types::from_primitive(iter.next()?.construct()?)?,
-                            )*
-                        })
+                        Some(#from_primitive_block)
                     },
                     _ => None,
                 }

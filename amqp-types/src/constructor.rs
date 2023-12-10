@@ -7,7 +7,7 @@ use crate::{
     primitives::{AmqpArray, AmqpList, AmqpMap, AmqpString, Binary, Primitive, Symbol},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Constructor {
     pub descriptor: Option<Descriptor>,
     pub format_code: FormatCode,

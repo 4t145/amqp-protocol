@@ -29,14 +29,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "amqp_transport"
+version = "0.1.0"
+dependencies = [
+ "amqp_types",
+ "bytes",
+ "decimal",
+ "tokio",
+]
+
+[[package]]
 name = "amqp_types"
 version = "0.1.0"
 dependencies = [
  "amqp_types_macro",
  "bytes",
- "decimal",
- "serde",
- "tokio",
 ]
 
 [[package]]
