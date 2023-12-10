@@ -1,16 +1,15 @@
 use bytes::Bytes;
 
-use crate::{constructor::Constructor, data::Data};
-
+use crate::{constructor::Constructor, data::Data, primitives::Primitive};
+#[derive(Debug, Clone)]
 pub struct Value {
     pub constructor: Constructor,
-    pub data: Data,
+    pub data: Bytes,
 }
 
-pub struct Symbol(Bytes);
-
-impl Symbol {
-    pub fn new(bytes: impl Into<Bytes>) -> Self {
-        Symbol(bytes.into())
+impl Value {
+    pub fn construct(&self) -> Option<Primitive> {
+        let mut data = self.data.clone();
+        self.constructor.construct(&mut data)
     }
 }

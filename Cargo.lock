@@ -29,12 +29,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "amqp-types"
+name = "amqp_types"
 version = "0.1.0"
 dependencies = [
+ "amqp_types_macro",
  "bytes",
  "decimal",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "amqp_types_macro"
+version = "0.1.0"
+dependencies = [
+ "amqp_types",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

@@ -143,14 +143,8 @@ pub enum ArraySubcategory {
     Four,
 }
 
-pub struct ArrayVisitor {
-    constructor: Constructor,
-    count: usize,
-    rest: Bytes,
-}
-
 impl FormatCode {
-    pub fn take_size(&self, bytes: &mut Bytes) -> Option<usize> {
+    pub fn peek_size(&self, bytes: &Bytes) -> Option<usize> {
         let fb = match self {
             FormatCode::Primitive(b) => b,
             FormatCode::Ext(b, _) => b,
@@ -163,12 +157,12 @@ impl FormatCode {
             0x80..=0x8f => Some(8),
             0x90..=0x9f => Some(16),
             0xa0..=0xaf | 0xc0..=0xcf | 0xe0..=0xef => {
-                let size = bytes.try_eat_n::<1>()?;
-                Some(size[0] as usize)
+                let size = bytes.peek_n::<1>()?;
+                Some(size[0] as usize + 1)
             }
             0xb0..=0xbf | 0xd0..=0xdf | 0xf0..=0xff => {
-                let size = bytes.try_eat_n::<4>().map(u32::from_be_bytes)?;
-                Some(size as usize)
+                let size = bytes.peek_n::<4>().map(u32::from_be_bytes)?;
+                Some(size as usize + 4)
             }
             _ => {
                 // invalid code
@@ -182,68 +176,70 @@ impl FormatCode {
 
     pub fn visit_u8(&self, data: Bytes) -> Option<u8> {
         (data.len() >= std::mem::size_of::<u8>() && matches!(self, &FormatCode::UBYTE))
-            .then_some(data[0])
+            .then(|| data[0])
     }
 
     pub fn visit_u16(&self, data: Bytes) -> Option<u16> {
         (data.len() >= std::mem::size_of::<u16>() && matches!(self, &FormatCode::USHORT))
-            .then_some(u16::from_be_bytes([data[0], data[1]]))
+            .then(|| u16::from_be_bytes([data[0], data[1]]))
     }
 
     pub fn visit_u32(&self, data: Bytes) -> Option<u32> {
         (data.len() >= std::mem::size_of::<u32>() && matches!(self, &FormatCode::UINT))
-            .then_some(u32::from_be_bytes([data[0], data[1], data[2], data[3]]))
+            .then(|| u32::from_be_bytes([data[0], data[1], data[2], data[3]]))
     }
 
     pub fn visit_u64(&self, data: Bytes) -> Option<u64> {
-        (data.len() >= std::mem::size_of::<u64>() && matches!(self, &FormatCode::ULONG)).then_some(
-            u64::from_be_bytes([
-                data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-            ]),
+        (data.len() >= std::mem::size_of::<u64>() && matches!(self, &FormatCode::ULONG)).then(
+            || {
+                u64::from_be_bytes([
+                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+                ])
+            },
         )
     }
 
     pub fn visit_i8(&self, data: Bytes) -> Option<i8> {
         (data.len() >= std::mem::size_of::<i8>() && matches!(self, &FormatCode::BYTE))
-            .then_some(data[0] as i8)
+            .then(|| data[0] as i8)
     }
 
     pub fn visit_i16(&self, data: Bytes) -> Option<i16> {
         (data.len() >= std::mem::size_of::<i16>() && matches!(self, &FormatCode::SHORT))
-            .then_some(i16::from_be_bytes([data[0], data[1]]))
+            .then(|| i16::from_be_bytes([data[0], data[1]]))
     }
 
     pub fn visit_i32(&self, data: Bytes) -> Option<i32> {
         (data.len() >= std::mem::size_of::<i32>() && matches!(self, &FormatCode::INT))
-            .then_some(i32::from_be_bytes([data[0], data[1], data[2], data[3]]))
+            .then(|| i32::from_be_bytes([data[0], data[1], data[2], data[3]]))
     }
 
     pub fn visit_i64(&self, data: Bytes) -> Option<i64> {
-        (data.len() >= std::mem::size_of::<i64>() && matches!(self, &FormatCode::LONG)).then_some(
+        (data.len() >= std::mem::size_of::<i64>() && matches!(self, &FormatCode::LONG)).then(|| {
             i64::from_be_bytes([
                 data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-            ]),
-        )
+            ])
+        })
     }
 
     pub fn visit_f32(&self, data: Bytes) -> Option<f32> {
         (data.len() >= std::mem::size_of::<f32>() && matches!(self, &FormatCode::FLOAT))
-            .then_some(f32::from_be_bytes([data[0], data[1], data[2], data[3]]))
+            .then(|| f32::from_be_bytes([data[0], data[1], data[2], data[3]]))
     }
 
     pub fn visit_f64(&self, data: Bytes) -> Option<f64> {
-        (data.len() >= std::mem::size_of::<f64>() && matches!(self, &FormatCode::DOUBLE)).then_some(
-            f64::from_be_bytes([
-                data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-            ]),
+        (data.len() >= std::mem::size_of::<f64>() && matches!(self, &FormatCode::DOUBLE)).then(
+            || {
+                f64::from_be_bytes([
+                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+                ])
+            },
         )
     }
 
     pub fn visit_char(&self, data: Bytes) -> Option<char> {
         (data.len() >= std::mem::size_of::<char>() && matches!(self, &FormatCode::CHAR))
-            .then_some(char::from_u32(u32::from_be_bytes([
-                data[0], data[1], data[2], data[3],
-            ])))
+            .then(|| char::from_u32(u32::from_be_bytes([data[0], data[1], data[2], data[3]])))
             .flatten()
     }
 }

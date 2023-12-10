@@ -1,5 +1,5 @@
 [package]
-name = "amqp-types"
+name = "amqp_types"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,5 @@ edition = "2021"
 bytes = { workspce = true }
 decimal = { workspce = true }
 serde = { workspce = true }
+tokio = { workspce = true, features = ["net"] }
+amqp_types_macro = { path = "../amqp-types-macro" }

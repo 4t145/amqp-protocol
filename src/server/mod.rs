@@ -126,6 +126,8 @@ impl<'c> ServerConnection<'c> {
         self.exthdr_buffer.resize(exthdr_size, 0);
         self.body_buffer.resize(body_size, 0);
         rx.read_exact(self.exthdr_buffer).await?;
+        let write_buffer = tokio::io::BufWriter::new(inner);
+        write_buffer.write_all(src);
         rx.read_exact(self.body_buffer).await?;
         let open = from_slice::<Open>(&self.body_buffer[..])?;
         // rx.read_buf(&mut buf);

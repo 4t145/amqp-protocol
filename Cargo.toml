@@ -7,7 +7,7 @@ edition = "2021"
 
 [workspace]
 members = [
-    "amqp-types",
+    "amqp-types", "amqp-types-macro",
 ]
 
 [dependencies]
