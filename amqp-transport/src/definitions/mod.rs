@@ -2,6 +2,16 @@ use std::collections::HashMap;
 
 use amqp_types::{Symbol, Types, Value};
 
+#[derive(Debug, Clone, Types)]
+#[amqp(restrict(source = bool))]
+pub enum Role {
+    #[amqp(choice = false)]
+    Sender,
+    #[amqp(choice = true)]
+    Receiver,
+}
+
+
 #[derive(Debug, Clone, Default, Types)]
 pub struct Fields(pub HashMap<Symbol, Value>);
 
@@ -14,12 +24,21 @@ pub struct SequenceNo(pub u32);
 #[derive(Debug, Clone, Copy, Default, Types)]
 pub struct TransferNumber(pub u32);
 
+
+
+
+
 #[test]
 fn test() {
     let x = Handle::default();
     let value = x.as_value();
     let y = Handle::from_value(value).unwrap();
     assert_eq!(x, y);
+    let role = Role::Receiver;
+    let value = role.as_value();
+    dbg!(&value);
+    let role2 = Role::from_value(value).unwrap();
+    dbg!(role2);
 }
 
 pub enum TestEnum {

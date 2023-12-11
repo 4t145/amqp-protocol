@@ -147,7 +147,7 @@ fn derive_types_for_new_type(input: DeriveInput) -> syn::Result<TokenStream> {
             quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::symbol(#s));)
         }
         Some(Descriptor::Numeric(i, j)) => {
-            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) & (#j as u64))));)
+            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) | (#j as u64))));)
         }
         None => quote!(
             const DESCRIPTOR: Option<amqp_types::Descriptor> = None;
@@ -168,7 +168,7 @@ fn derive_types_for_new_type(input: DeriveInput) -> syn::Result<TokenStream> {
             }
 
             fn restrict(source: Self::Source) -> Option<Self> {
-                if (#validation)(source) {
+                if (#validation)(&source) {
                     Some(Self(source))
                 } else {
                     None
@@ -257,7 +257,7 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
             quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::symbol(#s));)
         }
         Some(Descriptor::Numeric(i, j)) => {
-            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) & (#j as u64))));)
+            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) | (#j as u64))));)
         }
         None => quote!(
             const DESCRIPTOR: Option<amqp_types::Descriptor> = None;
@@ -270,12 +270,12 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
     });
     let restrict_match = variants.iter().map(|(ident, choice)| {
         quote! {
-            #choice => {#name::#ident},
+            #choice => Some(#name::#ident),
         }
     });
     let unrestrict_match = variants.iter().map(|(ident, choice)| {
         quote! {
-            #name::#ident => {&#choice},
+            &#name::#ident => &#choice,
         }
     });
 
@@ -310,7 +310,7 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
             }
 
             fn unrestrict(&self) -> &Self::Source {
-                match restricted {
+                match self {
                     #(
                         #unrestrict_match
                     )*
@@ -334,12 +334,15 @@ fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {
         _ => panic!("Types can only be derived for structs with named fields"),
     };
     let fields = named_fields.named.iter().map(|f| f.ident.clone());
+    let len = named_fields.named.len();
+    let count: syn::Expr = syn::parse_quote!(#len);
     let as_data_quote = quote! {
         use amqp_types::bytes::BufMut;
         use amqp_types::codec::enc::Encode;
         let mut size: u32 = 0;
         let mut data = amqp_types::bytes::BytesMut::new();
         data.put_u32(size);
+        data.put_u32(#count as u32);
         #(
             self.#fields.as_value().encode(&mut data);
         )*
@@ -387,7 +390,7 @@ fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {
             quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::symbol(#s));)
         }
         Some(Descriptor::Numeric(i, j)) => {
-            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) & (#j as u64))));)
+            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) | (#j as u64))));)
         }
         None => quote!(
             const DESCRIPTOR: Option<amqp_types::Descriptor> = None;
