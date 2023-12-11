@@ -1,7 +1,7 @@
 use amqp_types::{Primitive, Types};
 
 #[derive(Debug, Types, Default)]
-#[amqp(descriptor = 0x_00000003_00000002)]
+#[amqp(descriptor = 0x00000003:0x00000002)]
 pub struct Open {
     /// the id of the source container
     pub(crate) container_id: String,
