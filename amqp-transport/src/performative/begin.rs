@@ -10,7 +10,7 @@ use crate::definitions::{TransferNumber, Handle, Fields};
 #[amqp(descriptor = 0x_00000000_00000011)]
 pub struct Begin {
     remote_channel: u16,
-    // next_outgoing_i: TransferNumber,
+    next_outgoing_i: TransferNumber,
     incoming_window: u32,
     outgoing_window: u32,
     handle_max: Handle,

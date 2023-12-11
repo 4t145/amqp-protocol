@@ -2,125 +2,412 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Lit};
+use syn::{parse_macro_input, token::Colon, Data, DeriveInput, Expr, Field, Fields, Lit};
+mod consts;
+use consts::AMQP_DOMAIN;
+
+enum Descriptor {
+    Symbol(syn::LitByteStr),
+    Numeric(syn::LitInt, syn::LitInt),
+}
+
+impl syn::parse::Parse for Descriptor {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let lookahead = input.lookahead1();
+        if lookahead.peek(syn::LitByteStr) {
+            let s = input.parse::<syn::LitByteStr>()?;
+            Ok(Self::Symbol(s))
+        } else if lookahead.peek(syn::LitInt) {
+            let i = input.parse::<syn::LitInt>()?;
+            let _colon = input.parse::<syn::Token![:]>()?;
+            let j = input.parse::<syn::LitInt>()?;
+            Ok(Self::Numeric(i, j))
+        } else {
+            Err(lookahead.error())
+        }
+    }
+}
+
+struct AmqpStructAttr {
+    pub descriptor: Option<Descriptor>,
+}
+
+struct AmqpEnumAttr {
+    pub descriptor: Option<Descriptor>,
+    pub source: Option<syn::Type>,
+}
+#[derive(Default)]
+struct AmqpNewTypeAttr {
+    pub descriptor: Option<Descriptor>,
+    pub validation: Option<syn::Expr>,
+}
+
+//
+///
+///
+///
+///
+/// ```rust
+/// #[derive(Types)]
+/// #[amqp(restrict(source = u8))]
+/// pub enum MyEnum {
+///     #[amqp(choice = 0x12)]
+///     Variant1,
+///     #[amqp(choice = 0x13)]
+///     Variant2,
+///     #[amqp(choice = 0x14)]
+///     Variant3,
+/// }
+///
+/// ```
+///
+/// ```rust
+/// #[derive(Types)]
+/// #[amqp(restrict(source = u64, validation = |x| x!=0))]
+/// pub struct MyNewType(u64);
+/// ```
+///
+///
+///
+///
+
 #[proc_macro_derive(Types, attributes(amqp))]
 pub fn derive_types(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    let input_raw = input.clone();
+    let data = input.data;
+    let expanded = match data {
+        Data::Struct(s) => match s.fields {
+            Fields::Named(_) => derive_types_for_struct(input_raw),
+            Fields::Unnamed(_) => derive_types_for_new_type(input_raw),
+            Fields::Unit => panic!("Types can only be derived for structs with named fields"),
+        },
+        Data::Enum(_) => derive_types_for_enum(input_raw),
+        Data::Union(_) => panic!("Types can only be derived for structs and enums"),
+    };
 
+    expanded.expect("failed to expand")
+}
+
+fn derive_types_for_new_type(input: DeriveInput) -> syn::Result<TokenStream> {
     let name = input.ident;
-    let data = &input.data;
+    let data = input.data;
     let data = match data {
         Data::Struct(data) => data,
         _ => panic!("Types can only be derived for structs"),
     };
-
-    let generics = input.generics.clone();
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let fields_name = data
-        .fields
-        .iter()
-        .enumerate()
-        .map(|(idx, f)| {
-            if let Some(ident) = &f.ident {
-                quote!(#ident)
-            } else {
-                let index = syn::Index::from(idx);
-                quote!(#index)
+    let field = match data.fields {
+        Fields::Unnamed(unnamed) => {
+            if unnamed.unnamed.len() != 1 {
+                panic!("Types can only be derived for newtypes with one field");
             }
-        })
-        .collect::<Vec<_>>();
-    let from_primitive_block = match &data.fields {
-        syn::Fields::Named(named) => {
-            let fields = named.named.iter().map(|f| f.ident.clone());
-            quote! {
-                Self {
-                    #(
-                        #fields: amqp_types::types::Types::from_primitive(iter.next()?.construct()?)?,
-                    )*
-                }
-            }
+            unnamed.unnamed.into_iter().next().unwrap()
         }
-        syn::Fields::Unnamed(unnamed) => {
-            let types = unnamed.unnamed.iter().map(|_f| quote!());
-            quote!(
-                Self (
-                    #(
-                        #types amqp_types::types::Types::from_primitive(iter.next()?.construct()?)?,
-                    )*
-                )
-            )
-        }
-        syn::Fields::Unit => {
-            quote!(Self)
-        }
+        _ => panic!("Types can only be derived for newtypes with one field"),
     };
-
-    let fields_count = data.fields.len();
-    let mut descriptor = quote!();
-    input
+    let field_ty = field.ty;
+    let new_type_attr = input
         .attrs
         .iter()
-        .filter_map(|attr| {
-            if attr.path().is_ident("amqp") {
-                let result = attr.parse_nested_meta(|nested| {
-                    if nested.path.is_ident("descriptor") {
-                        let value = nested.value()?;
-                        let value = value.parse::<Lit>()?;
-                        descriptor = match value {
-                            Lit::ByteStr(s) => {
-                                quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::symbol(#s));)
-                            }
-                            Lit::Int(i) => {
-                                quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric(#i));)
-                            }
-                            _ => {
-                                return Err(syn::Error::new_spanned(
-                                    value,
-                                    "expected byte string, or integer",
-                                ));
-                            }
+        .find(|a| a.path().is_ident(AMQP_DOMAIN))
+        .map(|a| {
+            let mut descriptor = None;
+            let mut validation = None;
+            a.parse_nested_meta(|nested| {
+                if nested.path.is_ident("descriptor") {
+                    let value = nested.value()?;
+                    let value = value.parse::<Descriptor>()?;
+                    descriptor.replace(value);
+                } else if nested.path.is_ident("restrict") {
+                    // retrieve the source type
+                    nested.parse_nested_meta(|nested| {
+                        if nested.path.is_ident("validation") {
+                            let value = nested.value()?;
+                            validation = Some(value.parse::<syn::Expr>()?);
                         }
-                    }
-                    Ok(())
-                });
-                return Some(result);
-            }
-            None
+                        Ok(())
+                    })?;
+                }
+                Ok(())
+            })
+            .map(|_| AmqpNewTypeAttr {
+                descriptor,
+                validation,
+            })
         })
-        .collect::<syn::Result<()>>()
-        .expect("fail to parse amqp attributes");
+        .transpose()?
+        .unwrap_or_default();
+    let validation = new_type_attr.validation.unwrap_or_else(|| {
+        syn::parse_quote! {
+            |_| true
+        }
+    });
+    let descriptor_block = match new_type_attr.descriptor {
+        Some(Descriptor::Symbol(s)) => {
+            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::symbol(#s));)
+        }
+        Some(Descriptor::Numeric(i, j)) => {
+            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) & (#j as u64))));)
+        }
+        None => quote!(
+            const DESCRIPTOR: Option<amqp_types::Descriptor> = None;
+        ),
+    };
 
     let expanded = quote! {
-        impl #impl_generics amqp_types::types::Types for #name #ty_generics #where_clause {
-            #descriptor
-            const FORMAT_CODE: amqp_types::FormatCode = amqp_types::FormatCode::LIST32;
+        impl amqp_types::types::Types for #name {
+            #descriptor_block
+            type Source = #field_ty;
+            const FORMAT_CODE: amqp_types::FormatCode = Self::Source::FORMAT_CODE;
             fn as_data(&self) -> amqp_types::bytes::Bytes {
-                use amqp_types::bytes::BufMut;
-                use amqp_types::codec::enc::Encode;
-                let count = #fields_count as u32;
-                let mut size: u32 = 0;
-                let mut data = amqp_types::bytes::BytesMut::new();
-                data.put_u32(size);
-                data.put_u32(count);
-                #(
-                    self.#fields_name.as_value().encode(&mut data);
-                )*
-                size = data.len() as u32 - 4;
-                data[0..4].copy_from_slice(&size.to_be_bytes());
-                data.into()
+                self.unrestrict().as_data()
             }
 
-            fn from_primitive(value: amqp_types::Primitive) -> Option<Self> {
-                match value {
-                    amqp_types::Primitive::List(l) => {
-                        let mut iter = l.into_iter();
-                        Some(#from_primitive_block)
-                    },
+            fn from_primitive(value: amqp_types::Primitive) -> Option<Self::Source> {
+                Self::Source::from_primitive(value)
+            }
+
+            fn restrict(source: Self::Source) -> Option<Self> {
+                if (#validation)(source) {
+                    Some(Self(source))
+                } else {
+                    None
+                }
+            }
+
+            fn unrestrict(&self) -> &Self::Source {
+                &self.0
+            }
+        }
+    };
+    Ok(expanded.into())
+}
+
+fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
+    let name = input.ident;
+    let data = input.data;
+    let data = match data {
+        Data::Enum(data) => data,
+        _ => panic!("Types can only be derived for enums"),
+    };
+    let descriptor = input
+        .attrs
+        .iter()
+        .find(|a| a.path().is_ident(AMQP_DOMAIN))
+        .map(|a| {
+            let mut descriptor = None;
+            let mut source = None;
+            a.parse_nested_meta(|nested| {
+                if nested.path.is_ident("descriptor") {
+                    let value = nested.value()?;
+                    let value = value.parse::<Descriptor>()?;
+                    descriptor.replace(value);
+                } else if nested.path.is_ident("restrict") {
+                    // retrieve the source type
+                    nested.parse_nested_meta(|nested| {
+                        if nested.path.is_ident("source") {
+                            let value = nested.value()?;
+                            source = Some(value.parse::<syn::Type>()?);
+                        }
+                        Ok(())
+                    })?;
+                }
+                Ok(())
+            })
+            .map(|_| AmqpEnumAttr { descriptor, source })
+        })
+        .transpose()?
+        .ok_or(syn::Error::new_spanned(
+            "",
+            "expected `amqp(descriptor = <descriptor>)`",
+        ))?;
+
+    let variants = data
+        .variants
+        .iter()
+        .map(|v| {
+            let choice = v
+                .attrs
+                .iter()
+                .find_map(|attr| {
+                    if attr.path().is_ident(AMQP_DOMAIN) {
+                        let mut expr = None;
+                        let result = attr.parse_nested_meta(|nested| {
+                            if nested.path.is_ident("choice") {
+                                let value = nested.value()?;
+                                let value = value.parse::<Expr>()?;
+                                expr.replace(value);
+                            }
+                            Ok(())
+                        });
+                        return expr;
+                    }
+                    None
+                })
+                .ok_or(syn::Error::new_spanned(
+                    v,
+                    "expected `amqp(choice = <expr>)`",
+                ))?;
+            Ok((v.ident.clone(), choice))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+
+    let descriptor_block = match descriptor.descriptor {
+        Some(Descriptor::Symbol(s)) => {
+            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::symbol(#s));)
+        }
+        Some(Descriptor::Numeric(i, j)) => {
+            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) & (#j as u64))));)
+        }
+        None => quote!(
+            const DESCRIPTOR: Option<amqp_types::Descriptor> = None;
+        ),
+    };
+    let source = descriptor.source.unwrap_or_else(|| {
+        syn::parse_quote! {
+            u8
+        }
+    });
+    let restrict_match = variants.iter().map(|(ident, choice)| {
+        quote! {
+            #choice => {#name::#ident},
+        }
+    });
+    let unrestrict_match = variants.iter().map(|(ident, choice)| {
+        quote! {
+            #name::#ident => {&#choice},
+        }
+    });
+
+    let from_primitive_block = quote! {
+        Self::Source::from_primitive(value)
+    };
+
+    let expanded = quote! {
+        impl amqp_types::types::Types for #name {
+            #descriptor_block
+            type Source = #source;
+            const FORMAT_CODE: amqp_types::FormatCode = Self::Source::FORMAT_CODE;
+            fn as_data(&self) -> amqp_types::bytes::Bytes {
+                self.unrestrict().as_data()
+            }
+
+            fn constructor(&self) -> amqp_types::Constructor {
+                self.unrestrict().constructor()
+            }
+
+            fn from_primitive(value: amqp_types::Primitive) -> Option<Self::Source> {
+                #from_primitive_block
+            }
+
+            fn restrict(source: Self::Source) -> Option<Self> {
+                match source {
+                    #(
+                        #restrict_match
+                    )*
                     _ => None,
                 }
             }
+
+            fn unrestrict(&self) -> &Self::Source {
+                match restricted {
+                    #(
+                        #unrestrict_match
+                    )*
+                }
+            }
         }
     };
 
-    expanded.into()
+    Ok(expanded.into())
+}
+
+fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {
+    let name = input.ident;
+    let data = input.data;
+    let data = match data {
+        Data::Struct(data) => data,
+        _ => panic!("Types can only be derived for structs"),
+    };
+    let named_fields = match data.fields {
+        Fields::Named(named) => named,
+        _ => panic!("Types can only be derived for structs with named fields"),
+    };
+    let fields = named_fields.named.iter().map(|f| f.ident.clone());
+    let as_data_quote = quote! {
+        use amqp_types::bytes::BufMut;
+        use amqp_types::codec::enc::Encode;
+        let mut size: u32 = 0;
+        let mut data = amqp_types::bytes::BytesMut::new();
+        data.put_u32(size);
+        #(
+            self.#fields.as_value().encode(&mut data);
+        )*
+        size = data.len() as u32 - 4;
+        data[0..4].copy_from_slice(&size.to_be_bytes());
+        data.into()
+    };
+    let from_primitive_item = named_fields
+        .named
+        .into_iter()
+        .map(|f| f.ident.expect("named field should have ident"));
+    let from_primitive_block = quote! {
+        match value {
+            amqp_types::Primitive::List(l) => {
+                let mut iter = l.into_iter();
+                Some(Self {
+                    #(#from_primitive_item: amqp_types::types::Types::from_value(iter.next()?)?,)*
+                })
+            },
+            _ => None,
+        }
+    };
+
+    let descriptor = input
+        .attrs
+        .iter()
+        .find(|a| a.path().is_ident(AMQP_DOMAIN))
+        .map(|a| {
+            let mut descriptor = None;
+            a.parse_nested_meta(|nested| {
+                if nested.path.is_ident("descriptor") {
+                    let value = nested.value()?;
+                    let value = value.parse::<Descriptor>()?;
+                    descriptor.replace(value);
+                }
+                Ok(())
+            })
+            .map(|_| descriptor)
+        })
+        .transpose()?
+        .flatten();
+
+    let descriptor_block = match descriptor {
+        Some(Descriptor::Symbol(s)) => {
+            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::symbol(#s));)
+        }
+        Some(Descriptor::Numeric(i, j)) => {
+            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) & (#j as u64))));)
+        }
+        None => quote!(
+            const DESCRIPTOR: Option<amqp_types::Descriptor> = None;
+        ),
+    };
+
+    let expanded = quote! {
+        impl amqp_types::types::Types for #name {
+            #descriptor_block
+            amqp_types::no_restrict!{}
+            const FORMAT_CODE: amqp_types::FormatCode = amqp_types::FormatCode::LIST32;
+            fn as_data(&self) -> amqp_types::bytes::Bytes {
+                #as_data_quote
+            }
+
+            fn from_primitive(value: amqp_types::Primitive) -> Option<Self> {
+                #from_primitive_block
+            }
+        }
+    };
+
+    Ok(expanded.into())
 }

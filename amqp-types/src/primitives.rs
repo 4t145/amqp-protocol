@@ -2,7 +2,11 @@ use std::str::Utf8Error;
 
 use bytes::Bytes;
 
-use crate::{codec::Decode, constructor::Constructor, value::Value};
+use crate::{
+    codec::{BytesExt, Decode},
+    constructor::Constructor,
+    value::Value,
+};
 
 use super::codes::FormatCode;
 #[derive(Debug, Clone)]
@@ -63,14 +67,19 @@ pub struct AmqpArray {
 }
 
 impl Iterator for AmqpArray {
-    type Item = Primitive;
+    type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.count == 0 {
             None
         } else {
             self.count -= 1;
-            self.constructor.construct(&mut self.data)
+            let size = self.constructor.format_code.peek_size(&self.data)?;
+            let data = self.data.try_eat(size)?;
+            Some(Value {
+                constructor: self.constructor.clone(),
+                data,
+            })
         }
     }
 }
