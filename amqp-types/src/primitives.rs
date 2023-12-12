@@ -1,4 +1,4 @@
-use std::str::Utf8Error;
+use std::{ops::Deref, str::Utf8Error};
 
 use bytes::Bytes;
 
@@ -52,12 +52,32 @@ impl AmqpString {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 
 pub struct Binary(pub(crate) Bytes);
 
+impl Deref for Binary {
+    type Target = Bytes;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol(pub(crate) Bytes);
+impl Symbol {
+    pub fn as_str(&self) -> Result<&str, Utf8Error> {
+        std::str::from_utf8(self.0.as_ref())
+    }
+    pub const fn from_static(value: &'static [u8]) -> Self {
+        Self(Bytes::from_static(value))
+    }
+    pub const fn from_static_str(value: &'static str) -> Self {
+        Self(Bytes::from_static(value.as_bytes()))
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub struct AmqpArray {

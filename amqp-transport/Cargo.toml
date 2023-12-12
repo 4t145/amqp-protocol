@@ -10,3 +10,4 @@ bytes = { workspace = true }
 decimal = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 amqp_types = { path = "../amqp-types" }
+oxilangtag = "0.1.3"

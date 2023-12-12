@@ -270,12 +270,17 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
     });
     let restrict_match = variants.iter().map(|(ident, choice)| {
         quote! {
-            #choice => Some(#name::#ident),
+            if #choice == source {
+                return Some(#name::#ident)
+            }
         }
     });
     let unrestrict_match = variants.iter().map(|(ident, choice)| {
         quote! {
-            &#name::#ident => &#choice,
+            &#name::#ident => {
+                static choice: #source = #choice;
+                return &choice
+            },
         }
     });
 
@@ -301,12 +306,10 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
             }
 
             fn restrict(source: Self::Source) -> Option<Self> {
-                match source {
-                    #(
-                        #restrict_match
-                    )*
-                    _ => None,
-                }
+                #(
+                    #restrict_match
+                )*
+                return None
             }
 
             fn unrestrict(&self) -> &Self::Source {
@@ -334,6 +337,31 @@ fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {
         _ => panic!("Types can only be derived for structs with named fields"),
     };
     let fields = named_fields.named.iter().map(|f| f.ident.clone());
+    let fields_default = named_fields.named.iter().map(|f| {
+        let mut default = None;
+        for attr in &f.attrs {
+            if !attr.path().is_ident("amqp") {
+                continue;
+            }
+            attr.parse_nested_meta(|meta| {
+                if !meta.path.is_ident("default") {
+                    return Ok(())
+                }
+                let value = meta.value()?.parse::<Expr>()?;
+                default.replace(value);
+                Ok(())
+            })?;
+        }
+        Ok((f.ident.clone().expect("named struct field should have a ident"), f.ty.clone(), default))
+    }).collect::<syn::Result<Vec<_>>>()?;
+
+    let from_primitive_items = fields_default.into_iter().map(|(itent, ty, default)| {
+        if let Some(default) = default {
+            quote!(#itent: Option::<#ty>::from_value(iter.next()?)?.unwrap_or(#default),)
+        } else {
+            quote!(#itent: amqp_types::types::Types::from_value(iter.next()?)?,)
+        }
+    });
     let len = named_fields.named.len();
     let count: syn::Expr = syn::parse_quote!(#len);
     let as_data_quote = quote! {
@@ -350,16 +378,12 @@ fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {
         data[0..4].copy_from_slice(&size.to_be_bytes());
         data.into()
     };
-    let from_primitive_item = named_fields
-        .named
-        .into_iter()
-        .map(|f| f.ident.expect("named field should have ident"));
     let from_primitive_block = quote! {
         match value {
             amqp_types::Primitive::List(l) => {
                 let mut iter = l.into_iter();
                 Some(Self {
-                    #(#from_primitive_item: amqp_types::types::Types::from_value(iter.next()?)?,)*
+                    #(#from_primitive_items)*
                 })
             },
             _ => None,
