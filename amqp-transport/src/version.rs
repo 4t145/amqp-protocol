@@ -1,5 +1,6 @@
-
 use std::io::{self, Read, Write};
+
+use crate::definitions::{MAJOR, MINOR, REVISION};
 #[derive(Debug, PartialEq, Eq)]
 pub struct Version {
     pub major: u8,
@@ -9,9 +10,9 @@ pub struct Version {
 
 impl Version {
     pub const V_1_0_0: Self = Version {
-        major: 1,
-        minor: 0,
-        revision: 0,
+        major: MAJOR,
+        minor: MINOR,
+        revision: REVISION,
     };
     pub fn write<W: Write>(self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&[
@@ -25,17 +26,13 @@ impl Version {
             self.revision,
         ])
     }
-    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let mut buf = [0; 8];
-        Self::try_parse(buf)
-    }
 
-    pub fn try_parse(datas: [u8; 8]) -> io::Result<Self> {
-        if &datas[0..5] == b"AMQP\xd0" {
+    pub fn try_parse(data: [u8; 8]) -> io::Result<Self> {
+        if &data[0..5] == b"AMQP\xd0" {
             Ok(Version {
-                major: datas[5],
-                minor: datas[6],
-                revision: datas[7],
+                major: data[5],
+                minor: data[6],
+                revision: data[7],
             })
         } else {
             Err(io::Error::new(

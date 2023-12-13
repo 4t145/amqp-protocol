@@ -1,6 +1,6 @@
-use amqp_types::{Primitive, Types};
+use amqp_types::{Primitive, Type};
 
-#[derive(Debug, Types, Default)]
+#[derive(Debug, Type, Default)]
 #[amqp(descriptor = 0x00000003:0x00000002)]
 pub struct Open {
     /// the id of the source container

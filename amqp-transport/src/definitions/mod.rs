@@ -1,8 +1,8 @@
 use std::{collections::HashMap, time::Duration};
 
-use amqp_types::{Binary, Symbol, Types, Value};
+use amqp_types::{provides::{Require, Provide}, Binary, Symbol, Type, Value};
 
-#[derive(Debug, Clone, Types)]
+#[derive(Debug, Clone, Type)]
 #[amqp(restrict(source = bool))]
 pub enum Role {
     #[amqp(choice = false)]
@@ -11,7 +11,7 @@ pub enum Role {
     Receiver,
 }
 
-#[derive(Debug, Clone, Types)]
+#[derive(Debug, Clone, Type)]
 #[amqp(restrict(source = u8))]
 pub enum SenderSettleMode {
     #[amqp(choice = 0)]
@@ -22,7 +22,7 @@ pub enum SenderSettleMode {
     Mixed,
 }
 
-#[derive(Debug, Clone, Types)]
+#[derive(Debug, Clone, Type)]
 #[amqp(restrict(source = u8))]
 pub enum ReceiverSettleMode {
     #[amqp(choice = 0)]
@@ -31,10 +31,10 @@ pub enum ReceiverSettleMode {
     Second,
 }
 
-#[derive(Debug, Clone, Copy, Default, Types, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, Type, PartialEq, Eq, Hash)]
 pub struct Handle(pub u32);
 
-#[derive(Debug, Clone, Copy, Default, Types, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Type, PartialEq, Eq)]
 pub struct Seconds(pub u32);
 
 impl From<Seconds> for Duration {
@@ -43,7 +43,7 @@ impl From<Seconds> for Duration {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, Types, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Type, PartialEq, Eq)]
 pub struct Milliseconds(pub u32);
 
 impl From<Milliseconds> for Duration {
@@ -52,35 +52,40 @@ impl From<Milliseconds> for Duration {
     }
 }
 
-#[derive(Debug, Clone, Default, Types, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Type, PartialEq, Eq)]
 #[amqp(restrict(validation = |b: &Binary| b.len() <= 32))]
 pub struct DeliveryTag(pub Binary);
 
 pub type DeliveryNumber = SequenceNo;
 pub type TransferNumber = SequenceNo;
 
-#[derive(Debug, Clone, Copy, Default, Types)]
+#[derive(Debug, Clone, Copy, Default, Type)]
 // should be RFC-1982
 pub struct SequenceNo(pub u32);
 
-#[derive(Debug, Clone, Types)]
+#[derive(Debug, Clone, Type)]
 pub struct IetfLanguageTag(pub Symbol);
 pub type Fields = HashMap<Symbol, Value>;
 
-#[derive(Debug, Clone, Types)]
+#[derive(Debug, Clone, Type)]
 pub struct Error {
     pub condition: Symbol,
     pub description: Option<String>,
     pub info: Option<Fields>,
 }
 
+#[derive(Debug, Clone, Type)]
+pub struct ErrorCondition(pub Symbol);
+
+impl Require for ErrorCondition {}
+
 const fn sym(s: &'static str) -> Symbol {
     Symbol::from_static_str(s)
 }
 
 /// Shared error conditions.
-#[derive(Debug, Clone, Copy, Types)]
-#[amqp(restrict(source = Symbol))]
+#[derive(Debug, Clone, Copy, Type)]
+#[amqp(restrict(source = &'static Symbol))]
 pub enum AmqpError {
     /// An internal error occurred. Operator intervention may be required to resume normal
     /// operation.
@@ -132,28 +137,29 @@ pub enum AmqpError {
     FrameSizeTooSmall,
 }
 
+impl Provide<ErrorCondition> for AmqpError {
 
+}
 
 /* ==========================================================================
                              CONST VALUES
 ==========================================================================*/
 
-
 /// the IANA assigned port number for AMQP.
-/// 
+///
 /// The standard AMQP port number that has been assigned
 /// by IANA for TCP, UDP, and SCTP.
-/// 
+///
 /// There are currently no UDP or SCTP mappings defined for
 /// AMQP. The port number is reserved for future transport
 /// mappings to these protocols.
 pub const PORT: u16 = 5672;
 
 /// the IANA assigned port number for secure AMQP (amqps).
-/// 
+///
 /// The standard AMQP port number that has been assigned
 /// by IANA for secure TCP using TLS.
-/// 
+///
 /// Implementations listening on this port should NOT expect
 /// a protocol handshake before TLS is negotiated.
 pub const SECURE_PORT: u16 = 5671;
@@ -167,10 +173,9 @@ pub const MINOR: u8 = 0;
 /// protocol revision.
 pub const REVISION: u8 = 0;
 
-
 /// the lower bound for the agreed maximum frame size (in
 /// bytes).
-/// 
+///
 /// During the initial Connection negotiation, the two peers
 /// must agree upon a maximum frame size. This constant de-
 /// fines the minimum value to which the maximum frame size
@@ -178,7 +183,6 @@ pub const REVISION: u8 = 0;
 /// that they can send frames of up to this size until they have
 /// agreed a definitive maximum frame size for that Connection.
 pub const MIN_MAX_FRAME_SIZE: u32 = 512;
-
 
 #[test]
 fn test() {

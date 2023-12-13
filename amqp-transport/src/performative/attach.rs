@@ -8,26 +8,27 @@
 
 use std::collections::HashMap;
 
-use amqp_types::{Symbol, Types, Value};
+use amqp_types::{Symbol, Type, Value, Primitive, provides::Require};
 
 use crate::definitions::*;
 
-pub trait Source: Types {}
+#[derive(Debug, Clone, Type)]
+pub struct Source(Value);
 
-pub trait Target: Types {}
+impl Require for Source {}
 
-pub struct Attach<S, T>
-where
-    S: Source,
-    T: Target,
+pub struct Target(Value);
+
+
+pub struct Attach
 {
     pub(crate) name: String,
     pub(crate) handle: u32,
     pub(crate) role: Role,
     pub(crate) snd_settle_mode: SenderSettleMode,
     pub(crate) rcv_settle_mode: ReceiverSettleMode,
-    pub(crate) source: Option<S>,
-    pub(crate) target: Option<T>,
+    pub(crate) source: Option<Source>,
+    pub(crate) target: Option<Target>,
     pub(crate) unsettled: Option<HashMap<Value, Value>>,
     pub(crate) incomplete_unsettled: Option<bool>,
     pub(crate) initial_delivery_count: Option<u32>,

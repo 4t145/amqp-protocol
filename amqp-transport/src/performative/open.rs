@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use amqp_types::{Symbol, Types};
+use amqp_types::{Symbol, Type};
 
 use crate::definitions::{Fields, IetfLanguageTag};
 
-#[derive(Debug, Types)]
+#[derive(Debug, Type)]
 #[amqp(descriptor = 0x00000000:0x00000011)]
 pub struct Open {
     /// the id of the source container

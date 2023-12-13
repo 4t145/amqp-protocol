@@ -1,6 +1,6 @@
 use bytes::Bytes;
 
-use crate::{constructor::Constructor, data::Data, primitives::Primitive};
+use crate::{constructor::Constructor, primitives::Primitive};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Value {
     pub constructor: Constructor,

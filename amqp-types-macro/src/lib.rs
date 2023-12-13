@@ -48,7 +48,7 @@ struct AmqpNewTypeAttr {
 ///
 ///
 /// ```rust
-/// #[derive(Types)]
+/// #[derive(Type)]
 /// #[amqp(restrict(source = u8))]
 /// pub enum MyEnum {
 ///     #[amqp(choice = 0x12)]
@@ -62,7 +62,7 @@ struct AmqpNewTypeAttr {
 /// ```
 ///
 /// ```rust
-/// #[derive(Types)]
+/// #[derive(Type)]
 /// #[amqp(restrict(source = u64, validation = |x| x!=0))]
 /// pub struct MyNewType(u64);
 /// ```
@@ -71,7 +71,7 @@ struct AmqpNewTypeAttr {
 ///
 ///
 
-#[proc_macro_derive(Types, attributes(amqp))]
+#[proc_macro_derive(Type, attributes(amqp))]
 pub fn derive_types(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let input_raw = input.clone();
@@ -80,10 +80,10 @@ pub fn derive_types(input: TokenStream) -> TokenStream {
         Data::Struct(s) => match s.fields {
             Fields::Named(_) => derive_types_for_struct(input_raw),
             Fields::Unnamed(_) => derive_types_for_new_type(input_raw),
-            Fields::Unit => panic!("Types can only be derived for structs with named fields"),
+            Fields::Unit => panic!("Type can only be derived for structs with named fields"),
         },
         Data::Enum(_) => derive_types_for_enum(input_raw),
-        Data::Union(_) => panic!("Types can only be derived for structs and enums"),
+        Data::Union(_) => panic!("Type can only be derived for structs and enums"),
     };
 
     expanded.expect("failed to expand")
@@ -94,16 +94,16 @@ fn derive_types_for_new_type(input: DeriveInput) -> syn::Result<TokenStream> {
     let data = input.data;
     let data = match data {
         Data::Struct(data) => data,
-        _ => panic!("Types can only be derived for structs"),
+        _ => panic!("Type can only be derived for structs"),
     };
     let field = match data.fields {
         Fields::Unnamed(unnamed) => {
             if unnamed.unnamed.len() != 1 {
-                panic!("Types can only be derived for newtypes with one field");
+                panic!("Type can only be derived for newtypes with one field");
             }
             unnamed.unnamed.into_iter().next().unwrap()
         }
-        _ => panic!("Types can only be derived for newtypes with one field"),
+        _ => panic!("Type can only be derived for newtypes with one field"),
     };
     let field_ty = field.ty;
     let new_type_attr = input
@@ -155,7 +155,7 @@ fn derive_types_for_new_type(input: DeriveInput) -> syn::Result<TokenStream> {
     };
 
     let expanded = quote! {
-        impl amqp_types::types::Types for #name {
+        impl amqp_types::types::Type for #name {
             #descriptor_block
             type Source = #field_ty;
             const FORMAT_CODE: amqp_types::FormatCode = Self::Source::FORMAT_CODE;
@@ -188,7 +188,7 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
     let data = input.data;
     let data = match data {
         Data::Enum(data) => data,
-        _ => panic!("Types can only be derived for enums"),
+        _ => panic!("Type can only be derived for enums"),
     };
     let descriptor = input
         .attrs
@@ -289,7 +289,7 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
     };
 
     let expanded = quote! {
-        impl amqp_types::types::Types for #name {
+        impl amqp_types::types::Type for #name {
             #descriptor_block
             type Source = #source;
             const FORMAT_CODE: amqp_types::FormatCode = Self::Source::FORMAT_CODE;
@@ -330,11 +330,11 @@ fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {
     let data = input.data;
     let data = match data {
         Data::Struct(data) => data,
-        _ => panic!("Types can only be derived for structs"),
+        _ => panic!("Type can only be derived for structs"),
     };
     let named_fields = match data.fields {
         Fields::Named(named) => named,
-        _ => panic!("Types can only be derived for structs with named fields"),
+        _ => panic!("Type can only be derived for structs with named fields"),
     };
     let fields = named_fields.named.iter().map(|f| f.ident.clone());
     let fields_default = named_fields.named.iter().map(|f| {
@@ -355,11 +355,11 @@ fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {
         Ok((f.ident.clone().expect("named struct field should have a ident"), f.ty.clone(), default))
     }).collect::<syn::Result<Vec<_>>>()?;
 
-    let from_primitive_items = fields_default.into_iter().map(|(itent, ty, default)| {
+    let from_primitive_items = fields_default.into_iter().map(|(ident, ty, default)| {
         if let Some(default) = default {
-            quote!(#itent: Option::<#ty>::from_value(iter.next()?)?.unwrap_or(#default),)
+            quote!(#ident: Option::<#ty>::from_value(iter.next()?)?.unwrap_or(#default),)
         } else {
-            quote!(#itent: amqp_types::types::Types::from_value(iter.next()?)?,)
+            quote!(#ident: amqp_types::types::Type::from_value(iter.next()?)?,)
         }
     });
     let len = named_fields.named.len();
@@ -422,7 +422,7 @@ fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {
     };
 
     let expanded = quote! {
-        impl amqp_types::types::Types for #name {
+        impl amqp_types::types::Type for #name {
             #descriptor_block
             amqp_types::no_restrict!{}
             const FORMAT_CODE: amqp_types::FormatCode = amqp_types::FormatCode::LIST32;

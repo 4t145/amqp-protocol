@@ -1,7 +1,6 @@
 use crate::{
     codes::FormatCode,
     constructor::Constructor,
-    data::{Data, DataView},
     descriptor::Descriptor,
     value::Value,
 };

@@ -8,7 +8,6 @@ use crate::{
     value::Value,
 };
 
-use super::codes::FormatCode;
 #[derive(Debug, Clone)]
 pub enum Primitive {
     Null,
@@ -35,6 +34,35 @@ pub enum Primitive {
     List(AmqpList),
     Map(AmqpMap),
     Array(AmqpArray),
+}
+
+
+
+macro_rules! derive_from {
+    ($($pt: ident: $rpt: ty),*) => {
+        $(
+            impl From<$rpt> for Primitive {
+                fn from(value: $rpt) -> Self {
+                    Primitive::$pt(value)
+                }
+            }
+        )*
+    };
+}
+
+derive_from! {
+    UByte: u8,
+    UShort: u16,
+    UInt: u32,
+    ULong: u64,
+    Byte: i8,
+    Short: i16,
+    Int: i32,
+    Long: i64,
+    Float: f32,
+    Double: f64,
+    // Timestamp: u64,
+    Uuid: [u8; 16]
 }
 
 #[derive(Debug, Clone)]

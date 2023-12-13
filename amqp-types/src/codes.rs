@@ -1,6 +1,6 @@
 use bytes::Bytes;
 
-use crate::{codec::BytesExt, constructor::Constructor};
+use crate::codec::BytesExt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormatCode {
@@ -176,7 +176,7 @@ pub trait ExtCode {
 }
 
 impl ExtCode for () {
-    fn size_hint(data: &Bytes) -> Option<usize> {
+    fn size_hint(_data: &Bytes) -> Option<usize> {
         panic!("not support ext code")
     }
 }
