@@ -13,31 +13,26 @@ use crate::{
     descriptor::Descriptor,
     primitives::{Binary, Symbol},
     value::Value,
-    Primitive,
+    Primitive, AmqpArray,
 };
 
 pub trait Type: Sized {
     const DESCRIPTOR: Option<Descriptor> = None;
-    const FORMAT_CODE: FormatCode;
+    // const FORMAT_CODE: FormatCode;
     type Source: Type;
-    #[inline]
-    fn default_constructor() -> Constructor {
-        Constructor {
-            descriptor: Self::DESCRIPTOR,
-            format_code: Self::FORMAT_CODE,
-        }
-    }
-    #[inline]
-    fn constructor(&self) -> Constructor {
-        Self::default_constructor()
-    }
-    fn as_value(&self) -> Value {
-        Value {
-            constructor: self.constructor(),
-            data: self.as_data(),
-        }
-    }
-    fn as_data(&self) -> Bytes;
+    // #[inline]
+    // fn default_constructor() -> Constructor {
+    //     Constructor {
+    //         descriptor: Self::DESCRIPTOR,
+    //         format_code: Self::FORMAT_CODE,
+    //     }
+    // }
+    // #[inline]
+    // fn constructor(&self) -> Constructor {
+    //     Self::default_constructor()
+    // }
+    fn as_value(self) -> Value;
+    // fn as_data(&self) -> Bytes;
     fn from_primitive(value: Primitive) -> Option<Self::Source>;
     fn from_value(value: Value) -> Option<Self> {
         value
@@ -73,23 +68,17 @@ macro_rules! no_restrict {
     };
 }
 impl Type for Value {
-    const FORMAT_CODE: FormatCode = FormatCode::Primitive(0x00);
+    // const FORMAT_CODE: FormatCode = FormatCode::Primitive(0x00);
     no_restrict! {}
     /// # WARN
     /// ⚠ Don't use this method ⚠
     ///
     /// [`Value`] has no default constructor
-    fn default_constructor() -> Constructor {
-        unreachable!("Value has no default constructor")
-    }
-    fn constructor(&self) -> Constructor {
-        self.constructor.clone()
-    }
-    fn as_data(&self) -> Bytes {
-        let mut data = BytesMut::new();
-        self.constructor().encode(&mut data);
-        data.extend(self.data.clone());
-        data.into()
+    // fn default_constructor() -> Constructor {
+    //     unreachable!("Value has no default constructor")
+    // }
+    fn as_value(self) -> Value {
+        self
     }
     fn from_value(value: Value) -> Option<Self> {
         Some(value)
@@ -108,9 +97,9 @@ macro_rules! derive_primitives {
         $(
             impl Type for $ty {
                 no_restrict!{}
-                const FORMAT_CODE: FormatCode = FormatCode::$code;
-                fn as_data(&self) -> Bytes {
-                    Bytes::from(self.to_be_bytes().to_vec())
+                // const FORMAT_CODE: FormatCode = FormatCode::$code;
+                fn as_value(self) -> Value {
+                    Value::new(FormatCode::$code, self.to_be_bytes().to_vec())
                 }
                 fn from_primitive(value: Primitive) -> Option<Self> {
                     if let Primitive::$prim(v) = value {
@@ -138,13 +127,13 @@ derive_primitives! {
 }
 
 impl Type for bool {
-    const FORMAT_CODE: FormatCode = FormatCode::BOOLEAN;
+    // const FORMAT_CODE: FormatCode = FormatCode::BOOLEAN;
     no_restrict! {}
-    fn as_data(&self) -> Bytes {
-        if *self {
-            Bytes::from_static(&[1])
+    fn as_value(self) -> Value {
+        if self {
+            Value::new(FormatCode::BOOLEAN_TRUE, Bytes::new())
         } else {
-            Bytes::from_static(&[0])
+            Value::new(FormatCode::BOOLEAN_FALSE, Bytes::new())
         }
     }
     fn from_primitive(value: Primitive) -> Option<Self> {
@@ -157,10 +146,10 @@ impl Type for bool {
 }
 
 impl Type for char {
-    const FORMAT_CODE: FormatCode = FormatCode::CHAR;
+    // const FORMAT_CODE: FormatCode = FormatCode::CHAR;
     no_restrict! {}
-    fn as_data(&self) -> Bytes {
-        Bytes::from((*self as u32).to_be_bytes().to_vec())
+    fn as_value(self) -> Value {
+        Value::new(FormatCode::CHAR, (self as u32).to_be_bytes().to_vec())
     }
     fn from_primitive(value: Primitive) -> Option<Self> {
         if let Primitive::Char(c) = value {
@@ -173,15 +162,15 @@ impl Type for char {
 
 impl Type for String {
     no_restrict! {}
-    const FORMAT_CODE: FormatCode = FormatCode::STRING32_UTF8;
-    fn as_data(&self) -> Bytes {
+    // const FORMAT_CODE: FormatCode = FormatCode::STRING32_UTF8;
+    fn as_value(self) -> Value {
         let mut size: u32 = 0;
         let mut data = BytesMut::new();
         data.put_u32(size);
         data.put(self.as_bytes());
         size = data.len() as u32 - 4;
         data[0..4].copy_from_slice(&size.to_be_bytes());
-        data.into()
+        Value::new(FormatCode::STRING32_UTF8, data)
     }
     fn from_primitive(value: Primitive) -> Option<Self> {
         if let Primitive::String(c) = value {
@@ -194,17 +183,15 @@ impl Type for String {
 
 impl Type for Binary {
     no_restrict! {}
-    const FORMAT_CODE: FormatCode = FormatCode::BINARY32;
-    fn as_data(&self) -> Bytes {
+    fn as_value(self) -> Value {
         let mut size: u32 = 0;
         let mut data = BytesMut::new();
         data.put_u32(size);
         data.put(self.0.as_ref());
         size = data.len() as u32 - 4;
         data[0..4].copy_from_slice(&size.to_be_bytes());
-        data.into()
+        Value::new(FormatCode::BINARY32, data)
     }
-
     fn from_primitive(value: Primitive) -> Option<Self> {
         if let Primitive::Binary(b) = value {
             Some(b)
@@ -216,17 +203,15 @@ impl Type for Binary {
 
 impl Type for Symbol {
     no_restrict! {}
-    const FORMAT_CODE: FormatCode = FormatCode::SYMBOL32;
-    fn as_data(&self) -> Bytes {
+    fn as_value(self) -> Value {
         let mut size: u32 = 0;
         let mut data = BytesMut::new();
         data.put_u32(size);
         data.put(self.0.as_ref());
         size = data.len() as u32 - 4;
         data[0..4].copy_from_slice(&size.to_be_bytes());
-        data.into()
+        Value::new(FormatCode::SYMBOL32, data)
     }
-
     fn from_primitive(value: Primitive) -> Option<Self> {
         if let Primitive::Symbol(s) = value {
             Some(s)
@@ -238,23 +223,9 @@ impl Type for Symbol {
 
 impl<T: Type> Type for Vec<T> {
     no_restrict! {}
-    const FORMAT_CODE: FormatCode = FormatCode::ARRAY32;
-    fn as_data(&self) -> Bytes {
-        let count = self.len() as u32;
-        let mut size: u32 = 0;
-        let mut data = BytesMut::new();
-        let item_constructor = T::default_constructor();
-        data.put_u32(size);
-        data.put_u32(count);
-        item_constructor.encode(&mut data);
-        for item in self {
-            data.extend(item.as_data());
-        }
-        size = data.len() as u32 - 4;
-        data[0..4].copy_from_slice(&size.to_be_bytes());
-        data.into()
+    fn as_value(self) -> Value {
+        T::as_array(self.into_iter())
     }
-
     fn from_primitive(value: Primitive) -> Option<Self> {
         if let Primitive::Array(a) = value {
             let mut v = Vec::with_capacity(a.count);

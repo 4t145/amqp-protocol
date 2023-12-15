@@ -8,12 +8,21 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Constructor {
-    pub descriptor: Option<Descriptor>,
+pub struct Constructor<'frame> {
+    pub descriptor: Option<Descriptor<'frame>>,
     pub format_code: FormatCode,
 }
 
-impl Constructor {
+impl<'frame> From<FormatCode> for Constructor<'frame> {
+    fn from(format_code: FormatCode) -> Self {
+        Constructor {
+            descriptor: None,
+            format_code,
+        }
+    }
+}
+
+impl<'frame> Constructor<'frame> {
     pub fn new(format_code: FormatCode) -> Self {
         Constructor {
             descriptor: None,

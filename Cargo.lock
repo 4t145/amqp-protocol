@@ -48,6 +48,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "amqp_types2"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+]
+
+[[package]]
 name = "amqp_types_macro"
 version = "0.1.0"
 dependencies = [

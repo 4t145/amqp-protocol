@@ -54,3 +54,39 @@ impl Encode for Value {
         bytes.put(self.data.clone());
     }
 }
+
+
+impl Encode for bool {
+    fn encode(&self, bytes: &mut BytesMut) {
+        bytes.put_u8(if *self { 0x01 } else { 0x00 });
+    }
+}
+
+impl Encode for char {
+    fn encode(&self, bytes: &mut BytesMut) {
+        bytes.put_u32(*self as u32);
+    }
+}
+
+macro_rules! derive_primitives {
+    ($($ty: ty, $f: ident)*) => {
+        $(impl Encode for $ty {
+            fn encode(&self, bytes: &mut BytesMut) {
+                bytes.$f(*self);
+            }
+        })*
+    };
+}
+
+derive_primitives! {
+    u8, put_u8
+    u16, put_u16
+    u32, put_u32
+    u64, put_u64
+    i8, put_i8
+    i16, put_i16
+    i32, put_i32
+    i64, put_i64
+    f32, put_f32
+    f64, put_f64
+}

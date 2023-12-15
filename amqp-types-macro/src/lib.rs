@@ -86,7 +86,7 @@ pub fn derive_types(input: TokenStream) -> TokenStream {
         Data::Union(_) => panic!("Type can only be derived for structs and enums"),
     };
 
-    expanded.expect("failed to expand")
+    expanded.unwrap_or_default()
 }
 
 fn derive_types_for_new_type(input: DeriveInput) -> syn::Result<TokenStream> {

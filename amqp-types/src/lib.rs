@@ -1,4 +1,4 @@
-pub mod codec;
+// pub mod codec;
 pub(crate) mod codes;
 pub(crate) mod constructor;
 pub mod descriptor;
@@ -8,7 +8,7 @@ pub mod provides;
 
 pub mod primitives;
 
-pub mod types;
+// pub mod types;
 
 pub use codes::FormatCode;
 pub use constructor::Constructor;
@@ -16,7 +16,7 @@ pub use descriptor::Descriptor;
 pub use primitives::*;
 pub use value::Value;
 
-pub use types::Type;
+// pub use types::Type;
 // re-export
 pub use bytes;
 

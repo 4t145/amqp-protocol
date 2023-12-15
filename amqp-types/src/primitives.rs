@@ -1,9 +1,9 @@
 use std::{ops::Deref, str::Utf8Error};
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 
 use crate::{
-    codec::{BytesExt, Decode},
+    codec::{enc::Encode, BytesExt, Decode},
     constructor::Constructor,
     value::Value,
 };
@@ -35,8 +35,6 @@ pub enum Primitive {
     Map(AmqpMap),
     Array(AmqpArray),
 }
-
-
 
 macro_rules! derive_from {
     ($($pt: ident: $rpt: ty),*) => {
@@ -106,12 +104,38 @@ impl Symbol {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct AmqpArray {
     pub(crate) constructor: Constructor,
     pub(crate) count: usize,
     pub(crate) data: Bytes,
+}
+
+impl AmqpArray {
+    pub fn new(constructor: Constructor, count: usize, data: Bytes) -> Self {
+        Self {
+            constructor,
+            count,
+            data,
+        }
+    }
+    pub fn from_iter<T>(iter: impl Iterator<Item = T>, constructor: impl Into<Constructor>) -> Self
+    where
+        T: Encode,
+    {
+        let constructor: Constructor = constructor.into();
+        let mut data = BytesMut::new();
+        let mut count = 0;
+        for item in iter {
+            count += 1;
+            item.encode(&mut data);
+        }
+        Self {
+            constructor,
+            count,
+            data: data.freeze(),
+        }
+    }
 }
 
 impl Iterator for AmqpArray {
