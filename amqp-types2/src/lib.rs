@@ -7,7 +7,8 @@ pub mod format_code;
 pub mod primitive;
 pub mod value;
 pub mod types;
-pub mod io;
+pub mod codec;
+pub mod error;
 
 pub fn try_take_n<'b>(bytes: &mut &'b[u8], size: usize) -> stdio::Result<&'b[u8]> {
     if bytes.len() > size {

@@ -34,6 +34,6 @@ pub enum Primitive<'frame> {
     Binary(Binary<'frame>),
     Symbol(Symbol<'frame>),
     List(ListIter<'frame>),
-    Map(Map<'frame>),
+    Map(MapIter<'frame>),
     Array(ArrayIter<'frame>),
 }

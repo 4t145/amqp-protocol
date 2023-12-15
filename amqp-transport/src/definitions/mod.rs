@@ -85,7 +85,7 @@ const fn sym(s: &'static str) -> Symbol {
 
 /// Shared error conditions.
 #[derive(Debug, Clone, Copy, Type)]
-#[amqp(restrict(source = &'static Symbol))]
+#[amqp(restrict(source = Symbol))]
 pub enum AmqpError {
     /// An internal error occurred. Operator intervention may be required to resume normal
     /// operation.

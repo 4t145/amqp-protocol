@@ -1,2 +1,2 @@
 #[derive(Debug, Clone)]
-pub struct Binary<'frame>(&'frame [u8]);
+pub struct Binary<'frame>(pub(crate) &'frame [u8]);

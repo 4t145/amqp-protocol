@@ -1,30 +1,16 @@
-use crate::io::WriteAble;
+use crate::codec::Encode;
 
 #[derive(Debug, Clone)]
 pub struct Data<'a> {
-    inner: DataInner<'a>,
+    inner: &'a [u8],
 }
-
-#[derive(Debug, Clone)]
-enum DataInner<'a> {
-    Read(&'a [u8]),
-    Write(&'a dyn WriteAble),
-}
-
 
 impl<'a> Data<'a> {
+    pub fn into_inner(self) -> &'a [u8] {
+        self.inner
+    }
     pub const fn new(bytes: &'a [u8]) -> Self {
-        Self {
-            inner: DataInner::Read(bytes),
-        }
-    }
-    pub const fn new_write(bytes: &'a impl WriteAble) -> Self {
-        Self {
-            inner: DataInner::Write(bytes),
-        }
-    }
-    pub fn as_write(&mut self) {
-        
+        Self { inner: bytes }
     }
 }
 

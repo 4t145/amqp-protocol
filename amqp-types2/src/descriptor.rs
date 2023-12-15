@@ -5,7 +5,7 @@ use crate::{primitive::Symbol, value::Value};
 pub enum Descriptor<'frame> {
     Symbol(Symbol<'frame>),
     Numeric(u64),
-    Reserved(Box<Value<'frame>>),
+    Reserved(/* Box<Value<'frame>> */),
 }
 
 impl<'frame> Descriptor<'frame> {

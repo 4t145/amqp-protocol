@@ -1,5 +1,11 @@
+use std::io;
+
 use bytes::Bytes;
 
+use crate::{
+    codec::de::DecodeExt,
+    error::{UNEXPECTED_TYPE, UNKNOWN_AMQP_TYPE},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormatCode {
@@ -177,5 +183,35 @@ pub trait ExtCode {
 impl ExtCode for () {
     fn size_hint(_data: &Bytes) -> Option<usize> {
         panic!("not support ext code")
+    }
+}
+
+impl FormatCode {
+    pub fn peek_size(&self, bytes: &[u8]) -> io::Result<usize> {
+        let fb = match self {
+            FormatCode::Primitive(b) => b,
+            FormatCode::Ext(b, _) => b,
+        };
+        let size = match *fb {
+            0x40..=0x4f => 0,
+            0x50..=0x5f => 1,
+            0x60..=0x6f => 2,
+            0x70..=0x7f => 4,
+            0x80..=0x8f => 8,
+            0x90..=0x9f => 16,
+            0xa0..=0xaf | 0xc0..=0xcf | 0xe0..=0xef => {
+                let size = bytes.peek_n::<1>()?;
+                size[0] as usize + 1
+            }
+            0xb0..=0xbf | 0xd0..=0xdf | 0xf0..=0xff => {
+                let size = bytes.peek_n::<4>().map(u32::from_be_bytes)?;
+                size as usize + 4
+            }
+            _ => {
+                // invalid code
+                return Err(io::Error::other(UNKNOWN_AMQP_TYPE));
+            }
+        };
+        Ok(size)
     }
 }

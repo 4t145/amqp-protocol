@@ -1,4 +1,6 @@
-use crate::{constructor::Constructor, data::Data};
+use std::io;
+
+use crate::{constructor::Constructor, data::Data, primitive::Primitive};
 
 #[derive(Debug, Clone,)]
 pub struct Value<'frame> {
@@ -12,5 +14,9 @@ impl<'frame> Value<'frame>  {
             constructor: constructor.into(),
             data: data.into()
         }
+    }
+    pub fn construct(self) -> io::Result<Primitive<'frame>> {
+        let Self { constructor, data } = self;
+        constructor.construct(data)
     }
 }
