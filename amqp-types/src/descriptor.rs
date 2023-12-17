@@ -1,16 +1,16 @@
 use bytes::Bytes;
 
-use crate::{primitives::Symbol, value::Value};
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Descriptor<'frame> {
-    Symbol(Symbol),
+use crate::{primitive::Symbol, value::Value};
+#[derive(Debug, Clone)]
+pub enum Descriptor<'a> {
+    Symbol(Symbol<'a>),
     Numeric(u64),
-    Reserved(Value<'frame>),
+    Reserved(/* Box<Value<'frame>> */),
 }
 
-impl<'frame> Descriptor<'frame> {
+impl<'a> Descriptor<'a> {
     pub const fn symbol(bytes: &'static [u8]) -> Self {
-        Self::Symbol(Symbol(Bytes::from_static(bytes)))
+        Self::Symbol(Symbol::new(bytes))
     }
     pub const fn numeric(id: u64) -> Self {
         Self::Numeric(id)

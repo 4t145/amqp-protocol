@@ -9,6 +9,6 @@ proc-macro = true
 syn = "2"
 quote = "1"
 proc-macro2 = "1"
-
+darling = "0.20.3"
 [dev-dependencies]
 amqp_types = { path = "../amqp-types"}

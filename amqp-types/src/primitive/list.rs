@@ -1,14 +1,6 @@
 use std::io;
 
-use crate::{
-    codec::{
-        de::{Decode, DecodeExt},
-        Encode,
-    },
-    constructor::Constructor,
-    format_code::FormatCode,
-    value::Value,
-};
+use crate::{codec::*, constructor::Constructor, format_code::FormatCode, value::Value};
 #[derive(Debug, Clone, Default)]
 pub struct ListIter<'frame> {
     pub(crate) count: usize,
@@ -38,4 +30,13 @@ impl<'frame> Iterator for ListIter<'frame> {
             Some(unsafe { self.next_unchecked() })
         }
     }
+}
+
+pub struct List<'a> {
+    inner: ListInner<'a>,
+}
+
+pub enum ListInner<'a> {
+    Read(ListIter<'a>),
+    Write(&'a mut dyn Iterator<Item = Value<'a>>),
 }

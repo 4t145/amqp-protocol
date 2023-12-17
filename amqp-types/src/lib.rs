@@ -1,23 +1,17 @@
-// pub mod codec;
-pub(crate) mod codes;
-pub(crate) mod constructor;
-pub mod descriptor;
-pub mod serde;
-pub mod value;
-pub mod provides;
 
-pub mod primitives;
-
-// pub mod types;
-
-pub use codes::FormatCode;
-pub use constructor::Constructor;
-pub use descriptor::Descriptor;
-pub use primitives::*;
+mod constructor;
+pub use constructor::*;
+mod data;
+mod descriptor;
+pub use descriptor::*;
+mod format_code;
+pub use format_code::*;
+pub mod primitive;
+pub use primitive::Primitive;
+mod value;
 pub use value::Value;
-
-// pub use types::Type;
-// re-export
-pub use bytes;
+pub mod codec;
+pub mod error;
+pub mod types;
 
 pub use amqp_types_macro::Type;

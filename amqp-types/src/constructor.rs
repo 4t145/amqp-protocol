@@ -1,182 +1,156 @@
-use bytes::Bytes;
-
+use crate::codec::{decode_str, Decode, DecodeExt};
+use crate::primitive::{ArrayIter, Binary, ListIter, Symbol};
 use crate::{
-    codec::{BytesExt, Decode},
-    codes::FormatCode,
-    descriptor::Descriptor,
-    primitives::{AmqpArray, AmqpList, AmqpMap, AmqpString, Binary, Primitive, Symbol},
+    data::Data, descriptor::Descriptor, error::UNKNOWN_AMQP_TYPE, format_code::FormatCode,
+    primitive::Primitive,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+use std::io;
+#[derive(Debug, Clone, Default)]
 pub struct Constructor<'frame> {
     pub descriptor: Option<Descriptor<'frame>>,
     pub format_code: FormatCode,
 }
 
-impl<'frame> From<FormatCode> for Constructor<'frame> {
-    fn from(format_code: FormatCode) -> Self {
-        Constructor {
-            descriptor: None,
-            format_code,
-        }
-    }
-}
-
 impl<'frame> Constructor<'frame> {
-    pub fn new(format_code: FormatCode) -> Self {
-        Constructor {
-            descriptor: None,
-            format_code,
-        }
-    }
-
-    pub fn described(descriptor: Descriptor, format_code: FormatCode) -> Self {
-        Constructor {
-            descriptor: Some(descriptor),
-            format_code,
-        }
-    }
-
-    pub fn is_described(&self) -> bool {
-        self.descriptor.is_some()
-    }
-
-    pub fn construct(&self, data: &mut Bytes) -> Option<Primitive> {
+    pub fn construct(self, data: Data<'frame>) -> io::Result<Primitive<'frame>> {
+        let mut data = data.into_inner();
         let value = match self.format_code {
             FormatCode::NULL => Primitive::Null,
             FormatCode::BOOLEAN_TRUE => Primitive::Boolean(true),
             FormatCode::BOOLEAN_FALSE => Primitive::Boolean(false),
             FormatCode::UINT_0 => Primitive::UInt(0),
             FormatCode::ULONG_0 => Primitive::ULong(0),
-            FormatCode::LIST0 => Primitive::List(AmqpList::default()),
-            FormatCode::BOOLEAN => Primitive::Boolean(Decode::decode(data)?),
-            FormatCode::UBYTE => Primitive::UByte(Decode::decode(data)?),
-            FormatCode::BYTE => Primitive::Byte(Decode::decode(data)?),
-            FormatCode::SMALL_UINT => Primitive::UInt(u8::decode(data)? as u32),
-            FormatCode::SMALL_ULONG => Primitive::ULong(u8::decode(data)? as u64),
-            FormatCode::SMALL_INT => Primitive::Int(i8::decode(data)? as i32),
-            FormatCode::SMALL_LONG => Primitive::Long(i8::decode(data)? as i64),
-            FormatCode::USHORT => Primitive::UShort(Decode::decode(data)?),
-            FormatCode::SHORT => Primitive::UShort(Decode::decode(data)?),
-            FormatCode::UINT => Primitive::UInt(Decode::decode(data)?),
-            FormatCode::INT => Primitive::Int(Decode::decode(data)?),
-            FormatCode::FLOAT => Primitive::Float(Decode::decode(data)?),
-            FormatCode::CHAR => {
-                todo!()
-            }
-            FormatCode::DECIMAL32 => {
-                todo!()
-            }
-            FormatCode::ULONG => Primitive::ULong(Decode::decode(data)?),
-            FormatCode::LONG => Primitive::Long(Decode::decode(data)?),
-            FormatCode::DOUBLE => Primitive::Double(Decode::decode(data)?),
-            FormatCode::DECIMAL64 => {
-                todo!()
-            }
-            FormatCode::DECIMAL128 => {
-                todo!()
-            }
-            FormatCode::TIMESTAMP => {
-                todo!()
-            }
-            FormatCode::UUID => Primitive::Uuid(Decode::decode(data)?),
+            FormatCode::LIST0 => Primitive::List(ListIter::default()),
+            FormatCode::BOOLEAN => Primitive::Boolean(Decode::decode(&mut data)?),
+            FormatCode::UBYTE => Primitive::UByte(Decode::decode(&mut data)?),
+            FormatCode::BYTE => Primitive::Byte(Decode::decode(&mut data)?),
+            FormatCode::SMALL_UINT => Primitive::UInt(u8::decode(&mut data)? as u32),
+            FormatCode::SMALL_ULONG => Primitive::ULong(u8::decode(&mut data)? as u64),
+            FormatCode::SMALL_INT => Primitive::Int(i8::decode(&mut data)? as i32),
+            FormatCode::SMALL_LONG => Primitive::Long(i8::decode(&mut data)? as i64),
+            FormatCode::USHORT => Primitive::UShort(Decode::decode(&mut data)?),
+            FormatCode::SHORT => Primitive::UShort(Decode::decode(&mut data)?),
+            FormatCode::UINT => Primitive::UInt(Decode::decode(&mut data)?),
+            FormatCode::INT => Primitive::Int(Decode::decode(&mut data)?),
+            FormatCode::FLOAT => Primitive::Float(Decode::decode(&mut data)?),
+            FormatCode::CHAR => Primitive::Char(Decode::decode(&mut data)?),
+            // FormatCode::DECIMAL32 => {
+            //     todo!()
+            // }
+            FormatCode::ULONG => Primitive::ULong(Decode::decode(&mut data)?),
+            FormatCode::LONG => Primitive::Long(Decode::decode(&mut data)?),
+            FormatCode::DOUBLE => Primitive::Double(Decode::decode(&mut data)?),
+            // FormatCode::DECIMAL64 => {
+            //     todo!()
+            // }
+            // FormatCode::DECIMAL128 => {
+            //     todo!()
+            // }
+            // FormatCode::TIMESTAMP => {
+            //     todo!()
+            // }
+            FormatCode::UUID => Primitive::Uuid(Decode::decode(&mut data)?),
             FormatCode::BINARY8 => {
-                let size = u8::decode(data)? as usize;
+                let size = u8::decode(&mut data)? as usize;
                 Primitive::Binary(Binary(data.try_eat(size)?))
             }
             FormatCode::BINARY32 => {
-                let size = u32::decode(data)? as usize;
+                let size = u32::decode(&mut data)? as usize;
                 Primitive::Binary(Binary(data.try_eat(size)?))
             }
             FormatCode::STRING8_UTF8 => {
-                let size = u32::decode(data)? as usize;
-                Primitive::String(AmqpString(data.try_eat(size)?))
+                let size = u32::decode(&mut data)? as usize;
+                decode_str(&mut data, size).map(Primitive::String)?
             }
             FormatCode::STRING32_UTF8 => {
-                let size = u32::decode(data)? as usize;
-                Primitive::String(AmqpString(data.try_eat(size)?))
+                let size = u32::decode(&mut data)? as usize;
+                decode_str(&mut data, size).map(Primitive::String)?
             }
             FormatCode::SYMBOL8 => {
-                let size = u8::decode(data)? as usize;
+                let size = u8::decode(&mut data)? as usize;
                 Primitive::Symbol(Symbol(data.try_eat(size)?))
             }
             FormatCode::SYMBOL32 => {
-                let size = u32::decode(data)? as usize;
+                let size = u32::decode(&mut data)? as usize;
                 Primitive::Symbol(Symbol(data.try_eat(size)?))
             }
             FormatCode::LIST8 => {
-                let size = u8::decode(data)? as usize;
+                let size = u8::decode(&mut data)? as usize;
                 let mut data = data.try_eat(size)?;
                 let count = u8::decode(&mut data)? as usize;
-                Primitive::List(AmqpList { count, data })
+                Primitive::List(ListIter {
+                    count,
+                    items_data: data,
+                })
             }
             FormatCode::LIST32 => {
-                let size = u32::decode(data)? as usize;
+                let size = u32::decode(&mut data)? as usize;
                 let mut data = data.try_eat(size)?;
                 let count = u32::decode(&mut data)? as usize;
-                Primitive::List(AmqpList { count, data })
+                Primitive::List(ListIter {
+                    count,
+                    items_data: data,
+                })
             }
             FormatCode::MAP8 => {
-                let size = u8::decode(data)? as usize;
+                let size = u8::decode(&mut data)? as usize;
                 let mut data = data.try_eat(size)?;
                 let count = u8::decode(&mut data)? as usize;
-                Primitive::Map(AmqpMap {
-                    count: count / 2,
-                    data,
-                })
+                Primitive::Map(
+                    ListIter {
+                        count,
+                        items_data: data,
+                    }
+                    .into(),
+                )
             }
             FormatCode::MAP32 => {
-                let size = u32::decode(data)? as usize;
+                let size = u32::decode(&mut data)? as usize;
                 let mut data = data.try_eat(size)?;
                 let count = u32::decode(&mut data)? as usize;
-                Primitive::Map(AmqpMap {
-                    count: count / 2,
-                    data,
-                })
+                Primitive::Map(
+                    ListIter {
+                        count,
+                        items_data: data,
+                    }
+                    .into(),
+                )
             }
             FormatCode::ARRAY8 => {
-                let size = u8::decode(data)? as usize;
+                let size = u8::decode(&mut data)? as usize;
                 let mut data = data.try_eat(size)?;
                 let count = u8::decode(&mut data)? as usize;
-                Primitive::List(AmqpList { count, data })
+                let constructor = Constructor::decode(&mut data)?;
+                Primitive::Array(ArrayIter {
+                    constructor,
+                    count,
+                    items_data: data,
+                })
             }
             FormatCode::ARRAY32 => {
-                let size = u32::decode(data)? as usize;
+                let size = u32::decode(&mut data)? as usize;
                 let mut data = data.try_eat(size)?;
                 let count = u32::decode(&mut data)? as usize;
                 let constructor = Constructor::decode(&mut data)?;
-                Primitive::Array(AmqpArray {
+                Primitive::Array(ArrayIter {
                     constructor,
                     count,
-                    data,
+                    items_data: data,
                 })
             }
-            FormatCode::Primitive(_) => {
-                return None;
+            FormatCode::Primitive(p) => {
+                return Err(io::Error::other(format!("{UNKNOWN_AMQP_TYPE}[{p:02x}]")));
             }
-            FormatCode::Ext(_, _) => {
-                return None;
+            FormatCode::Ext(c, b) => {
+                return Err(io::Error::other(format!(
+                    "{UNKNOWN_AMQP_TYPE}[{c:02x}:{b:02x}]"
+                )));
             }
         };
-        Some(value)
+        Ok(value)
+    }
+
+    pub fn peek_size(&self, data: &[u8]) -> io::Result<usize> {
+        self.format_code.peek_size(data)
     }
 }
-
-//        let byte = u8::decode(buffer)?;
-// match byte {
-//     0x00 => {
-//         let descriptor = Descriptor::view(buffer)?;
-//         let constructor = Constructor::view(buffer)?;
-//         Ok(Constructor::Described {
-//             descriptor,
-//             constructor: Box::new(constructor),
-//         })
-//     }
-//     code if code & 0x0f != 0x0f => Ok(Constructor::FormatCode(FormatCode::Primitive(code))),
-//     code => {
-//         let ext = u8::decode(buffer)?;
-//         Ok(Constructor::FormatCode(FormatCode::Ext(code, ext)))
-//     }
-// }
-// Array[T] -> Vec<T>
-// Map[K, V] -> HashMap<K, V>

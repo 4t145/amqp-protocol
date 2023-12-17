@@ -7,7 +7,7 @@ edition = "2021"
 
 [workspace]
 members = [ "amqp-transport",
-    "amqp-types", "amqp-types-macro", "amqp-types2", "decimal",
+    "amqp-types", "amqp-types-macro", "decimal",
 ]
 [workspace.dependencies]
 bytes = "1.5.0"

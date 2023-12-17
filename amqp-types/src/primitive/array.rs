@@ -1,16 +1,26 @@
-use crate::error::UNEXPECTED_TYPE;
 use crate::codec::Encode;
-use crate::try_take_n;
-use crate::types::{Type, Multiple};
+use crate::error::UNEXPECTED_TYPE;
+use crate::types::{Multiple, Type};
 use crate::{constructor::Constructor, value::Value};
+use std::fmt::Debug;
 use std::io;
 
 use super::Primitive;
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ArrayIter<'frame> {
     pub constructor: Constructor<'frame>,
     pub count: usize,
     pub items_data: &'frame [u8],
+}
+
+fn try_take_n<'b>(bytes: &mut &'b [u8], size: usize) -> io::Result<&'b [u8]> {
+    if bytes.len() > size {
+        Err(io::Error::other("invalid amqp data: no enough bytes"))
+    } else {
+        let (take, rest) = bytes.split_at(size);
+        *bytes = rest;
+        Ok(take)
+    }
 }
 
 impl<'frame> ArrayIter<'frame> {
@@ -41,14 +51,28 @@ pub struct Array<'a, T> {
     pub iter: ArrayInner<'a, T>,
 }
 
-impl<'a, T: Multiple<'a>> Array<'a, T> {
-    pub fn new(iter: impl IntoIterator<Item = T>) -> Self {
+impl<'a, T> Default for Array<'a, T> {
+    fn default() -> Self {
         Self {
             iter: ArrayInner::Data(ArrayIter {
-                constructor: T::CONSTRUCTOR,
-                count: iter.into_iter().count(),
+                constructor: Constructor::default(),
+                count: 0,
                 items_data: &[],
             }),
+        }
+    }
+}
+
+impl<'a, T> std::fmt::Debug for Array<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Array").finish()
+    }
+}
+
+impl<'a, T: Multiple> Array<'a, T> {
+    pub fn new(iter: &'a mut impl Iterator<Item = T>) -> Self {
+        Self {
+            iter: ArrayInner::Iter(iter as &'a mut dyn Iterator<Item = T>),
         }
     }
 }
@@ -87,12 +111,11 @@ impl<'a, T: Type<'a>> TryFrom<Value<'a>> for Array<'a, T> {
     }
 }
 
-
-impl<'a, T: Type<'a>> Encode for Array<'a, T> {
-    fn encode(self, buffer: &mut [u8]) -> io::Result<()> {
-        for item in self {
-            item?.encode(buffer)?
-        }
-        Ok(())
-    }
-}
+// impl<'a, T: Type<'a>> Encode for Array<'a, T> {
+//     fn encode(self, buffer: &mut [u8]) -> io::Result<()> {
+//         for item in self {
+//             item?.encode(buffer)?
+//         }
+//         Ok(())
+//     }
+// }

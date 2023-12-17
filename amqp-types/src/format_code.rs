@@ -1,11 +1,22 @@
+use std::io;
+
 use bytes::Bytes;
 
-use crate::codec::BytesExt;
+use crate::{
+    codec::DecodeExt,
+    error::{UNEXPECTED_TYPE, UNKNOWN_AMQP_TYPE},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormatCode {
     Primitive(u8),
     Ext(u8, u8),
+}
+
+impl Default for FormatCode {
+    fn default() -> Self {
+        Self::NULL
+    }
 }
 
 impl std::fmt::Debug for FormatCode {
@@ -143,40 +154,31 @@ pub enum ArraySubcategory {
 }
 
 impl FormatCode {
-    pub fn peek_size(&self, bytes: &Bytes) -> Option<usize> {
+    pub fn peek_size(&self, bytes: &[u8]) -> io::Result<usize> {
         let fb = match self {
             FormatCode::Primitive(b) => b,
             FormatCode::Ext(b, _) => b,
         };
-        match *fb {
-            0x40..=0x4f => Some(0),
-            0x50..=0x5f => Some(1),
-            0x60..=0x6f => Some(2),
-            0x70..=0x7f => Some(4),
-            0x80..=0x8f => Some(8),
-            0x90..=0x9f => Some(16),
+        let size = match *fb {
+            0x40..=0x4f => 0,
+            0x50..=0x5f => 1,
+            0x60..=0x6f => 2,
+            0x70..=0x7f => 4,
+            0x80..=0x8f => 8,
+            0x90..=0x9f => 16,
             0xa0..=0xaf | 0xc0..=0xcf | 0xe0..=0xef => {
                 let size = bytes.peek_n::<1>()?;
-                Some(size[0] as usize + 1)
+                size[0] as usize + 1
             }
             0xb0..=0xbf | 0xd0..=0xdf | 0xf0..=0xff => {
                 let size = bytes.peek_n::<4>().map(u32::from_be_bytes)?;
-                Some(size as usize + 4)
+                size as usize + 4
             }
             _ => {
                 // invalid code
-                None
+                return Err(io::Error::other(UNKNOWN_AMQP_TYPE));
             }
-        }
-    }
-}
-
-pub trait ExtCode {
-    fn size_hint(data: &Bytes) -> Option<usize>;
-}
-
-impl ExtCode for () {
-    fn size_hint(_data: &Bytes) -> Option<usize> {
-        panic!("not support ext code")
+        };
+        Ok(size)
     }
 }

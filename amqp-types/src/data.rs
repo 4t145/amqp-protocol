@@ -1,6 +1,4 @@
-use crate::codec::Encode;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Data<'a> {
     inner: &'a [u8],
 }

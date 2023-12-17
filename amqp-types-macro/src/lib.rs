@@ -1,6 +1,10 @@
+#[macro_use]
+extern crate darling;
 extern crate proc_macro;
+mod composite;
 
-use proc_macro::TokenStream;
+use darling::FromDeriveInput;
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, token::Colon, Data, DeriveInput, Expr, Field, Fields, Lit};
 mod consts;
@@ -72,7 +76,7 @@ struct AmqpNewTypeAttr {
 ///
 
 #[proc_macro_derive(Type, attributes(amqp))]
-pub fn derive_types(input: TokenStream) -> TokenStream {
+pub fn derive_types(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let input_raw = input.clone();
     let data = input.data;
@@ -86,7 +90,7 @@ pub fn derive_types(input: TokenStream) -> TokenStream {
         Data::Union(_) => panic!("Type can only be derived for structs and enums"),
     };
 
-    expanded.unwrap_or_default()
+    proc_macro::TokenStream::from(expanded.unwrap_or_default())
 }
 
 fn derive_types_for_new_type(input: DeriveInput) -> syn::Result<TokenStream> {
@@ -180,7 +184,7 @@ fn derive_types_for_new_type(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
     };
-    Ok(expanded.into())
+    Ok(expanded)
 }
 
 fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
@@ -326,115 +330,7 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
 }
 
 fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {
-    let name = input.ident;
-    let data = input.data;
-    let data = match data {
-        Data::Struct(data) => data,
-        _ => panic!("Type can only be derived for structs"),
-    };
-    let named_fields = match data.fields {
-        Fields::Named(named) => named,
-        _ => panic!("Type can only be derived for structs with named fields"),
-    };
-    let fields = named_fields.named.iter().map(|f| f.ident.clone());
-    let fields_default = named_fields.named.iter().map(|f| {
-        let mut default = None;
-        for attr in &f.attrs {
-            if !attr.path().is_ident("amqp") {
-                continue;
-            }
-            attr.parse_nested_meta(|meta| {
-                if !meta.path.is_ident("default") {
-                    return Ok(())
-                }
-                let value = meta.value()?.parse::<Expr>()?;
-                default.replace(value);
-                Ok(())
-            })?;
-        }
-        Ok((f.ident.clone().expect("named struct field should have a ident"), f.ty.clone(), default))
-    }).collect::<syn::Result<Vec<_>>>()?;
-
-    let from_primitive_items = fields_default.into_iter().map(|(ident, ty, default)| {
-        if let Some(default) = default {
-            quote!(#ident: Option::<#ty>::from_value(iter.next()?)?.unwrap_or(#default),)
-        } else {
-            quote!(#ident: amqp_types::types::Type::from_value(iter.next()?)?,)
-        }
-    });
-    let len = named_fields.named.len();
-    let count: syn::Expr = syn::parse_quote!(#len);
-    let as_data_quote = quote! {
-        use amqp_types::bytes::BufMut;
-        use amqp_types::codec::enc::Encode;
-        let mut size: u32 = 0;
-        let mut data = amqp_types::bytes::BytesMut::new();
-        data.put_u32(size);
-        data.put_u32(#count as u32);
-        #(
-            self.#fields.as_value().encode(&mut data);
-        )*
-        size = data.len() as u32 - 4;
-        data[0..4].copy_from_slice(&size.to_be_bytes());
-        data.into()
-    };
-    let from_primitive_block = quote! {
-        match value {
-            amqp_types::Primitive::List(l) => {
-                let mut iter = l.into_iter();
-                Some(Self {
-                    #(#from_primitive_items)*
-                })
-            },
-            _ => None,
-        }
-    };
-
-    let descriptor = input
-        .attrs
-        .iter()
-        .find(|a| a.path().is_ident(AMQP_DOMAIN))
-        .map(|a| {
-            let mut descriptor = None;
-            a.parse_nested_meta(|nested| {
-                if nested.path.is_ident("descriptor") {
-                    let value = nested.value()?;
-                    let value = value.parse::<Descriptor>()?;
-                    descriptor.replace(value);
-                }
-                Ok(())
-            })
-            .map(|_| descriptor)
-        })
-        .transpose()?
-        .flatten();
-
-    let descriptor_block = match descriptor {
-        Some(Descriptor::Symbol(s)) => {
-            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::symbol(#s));)
-        }
-        Some(Descriptor::Numeric(i, j)) => {
-            quote!(const DESCRIPTOR: Option<amqp_types::Descriptor> = Some(amqp_types::Descriptor::numeric((((#i as u64) << 32) | (#j as u64))));)
-        }
-        None => quote!(
-            const DESCRIPTOR: Option<amqp_types::Descriptor> = None;
-        ),
-    };
-
-    let expanded = quote! {
-        impl amqp_types::types::Type for #name {
-            #descriptor_block
-            amqp_types::no_restrict!{}
-            const FORMAT_CODE: amqp_types::FormatCode = amqp_types::FormatCode::LIST32;
-            fn as_data(&self) -> amqp_types::bytes::Bytes {
-                #as_data_quote
-            }
-
-            fn from_primitive(value: amqp_types::Primitive) -> Option<Self> {
-                #from_primitive_block
-            }
-        }
-    };
-
-    Ok(expanded.into())
+    let receiver = composite::CompositeOpts::from_derive_input(&input)?;
+    let tokens = quote!(#receiver);
+    Ok(tokens)
 }
