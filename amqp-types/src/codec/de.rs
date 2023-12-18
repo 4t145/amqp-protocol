@@ -22,8 +22,8 @@ pub trait DecodeExt: Sized {
 impl DecodeExt for &[u8] {
     fn split_to(&mut self, n: usize) -> Self {
         let (take, rest) = self.split_at(n);
-        *self = take;
-        rest
+        *self = rest;
+        take
     }
     #[inline]
     fn try_eat(&mut self, n: usize) -> io::Result<Self> {
@@ -78,6 +78,7 @@ impl<'de> Decode<'de> for Value<'de> {
 
 impl<'de> Decode<'de> for Constructor<'de> {
     fn decode(data: &mut &'de [u8]) -> io::Result<Self> {
+        debug_assert!(!data.is_empty(), "decode constructor: data is empty");
         if data.is_empty() {
             return Err(io::Error::other(BUFFER_SIZE_ERROR));
         }
@@ -94,6 +95,7 @@ impl<'de> Decode<'de> for Constructor<'de> {
         let format_code = if first_byte & 0x0f != 0x0f {
             FormatCode::Primitive(first_byte)
         } else {
+            debug_assert!(!data.is_empty(), "decode constructor: data is empty");
             if data.is_empty() {
                 return Err(io::Error::other(BUFFER_SIZE_ERROR));
             }

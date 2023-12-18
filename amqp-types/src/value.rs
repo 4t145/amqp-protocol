@@ -3,19 +3,10 @@ use std::io;
 use crate::error::UNEXPECTED_TYPE;
 use crate::primitive::*;
 use crate::{constructor::Constructor, data::Data, primitive::Primitive};
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Value<'frame> {
     pub constructor: Constructor<'frame>,
     pub data: Data<'frame>,
-}
-
-impl Default for Value<'_> {
-    fn default() -> Self {
-        Self {
-            constructor: Constructor::default(),
-            data: Data::default(),
-        }
-    }
 }
 
 impl<'frame> Value<'frame> {

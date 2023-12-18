@@ -1,98 +1,186 @@
-use crate::{codec::Encode, constructor::Constructor, primitive::*, value::Value};
+use crate::{codec::Encode, constructor::Constructor, error, primitive::*, value::Value};
 use std::io;
 
-pub mod restrict;
+mod restrict;
+pub use restrict::Restrict;
+mod multiple;
+pub use multiple::Multiple;
 
-pub trait Type<'a>: Encode<'a> + Restrict<'a> {
+pub trait Type<'a>: Encode + Restrict {
     fn try_from_value(value: Value<'a>) -> Result<Self, io::Error>;
 }
-#[macro_export]
-macro_rules! no_restrict {
-    {} => {
-        type Source = Self;
-        fn restrict(source: Self::Source) -> Result<Self, Self::Source> {
-            Ok(source)
-        }
-        fn source(self) -> Self::Source {
-            self
-        }
-    };
-}
-// a multiple type could be an element of an array
-pub trait Multiple {}
 
 impl<'a> Type<'a> for i8 {
     fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
-        todo!()
+        value
+            .construct()?
+            .as_i8()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
     }
 }
 
-// impl<'a, T: Type> Type<'a> for List<'a, T> {
-//     type Source = Self;
-// }
+impl<'a> Type<'a> for i16 {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_i16()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
 
-// impl<'a, T: Type<'a>> Type<'a> for Array<'a, T> {
-//     type Source = Self;
-// }
+impl<'a> Type<'a> for i32 {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_i32()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
 
-// macro_rules! derive_primitives {
-//     ($($ty:ty)*) => {
-//         $(
-//             impl<'a> Type<'a> for $ty {
-//                 no_restrict!{}
-//             }
-//             impl<'a> Multiple for $ty { }
-//         )*
-//     };
-//     ({$lt:lifetime} $($ty:ident);* $(;)?) => {
-//         $(
-//             impl<$lt> Type<$lt> for $ty<$lt> {
-//                 no_restrict!{}
-//             }
-//             impl<$lt> Multiple for $ty<$lt> { }
+impl<'a> Type<'a> for i64 {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_i64()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
 
-//         )*
-//     };
-// }
+impl<'a> Type<'a> for u8 {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_u8()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
 
-// derive_primitives! {
-//     i8
-//     i16
-//     i32
-//     i64
-//     u8
-//     u16
-//     u32
-//     u64
-//     f32
-//     f64
-//     char
-//     Uuid
-//     Ts
-// }
+impl<'a> Type<'a> for u16 {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_u16()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
 
-// derive_primitives! {
-//     {'a}
-//     Symbol
+impl<'a> Type<'a> for u32 {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_u32()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
 
-// }
+impl<'a> Type<'a> for u64 {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_u64()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
 
-// impl<'a> Type<'a> for &'a str {
-//     no_restrict! {}
-// }
+impl<'a> Type<'a> for f32 {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_f32()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
 
-// impl<'a> Multiple<'a> for &'a str {}
+impl<'a> Type<'a> for f64 {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_f64()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
 
-// impl<'a, T: Type<'a> + Multiple<'a>> Type<'a> for Array<'a, T> {
-//     no_restrict! {}
-// }
-// impl<'a, T: Type<'a>> Multiple<'a> for Array<'a, T> {}
-// impl<'a, T: Type<'a>> Type<'a> for Option<T> {
-//     type Source = Option<T::Source>;
-//     fn restrict(source: Self::Source) -> Result<Self, Self::Source> {
-//         Ok(source.map(T::restrict))
-//     }
-//     fn source(self) -> Self::Source {
-//         self.map(T::source)
-//     }
-// }
+impl<'a> Type<'a> for char {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_char()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
+
+impl<'a> Type<'a> for Uuid {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_uuid()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
+
+impl<'a> Type<'a> for Ts {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_ts()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
+
+impl<'a> Type<'a> for &'a str {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_str()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
+
+impl<'a> Type<'a> for Symbol<'a> {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_symbol()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
+
+impl<'a> Type<'a> for Binary<'a> {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        value
+            .construct()?
+            .as_binary()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))
+    }
+}
+
+impl<'a, T: Type<'a> + Multiple> Type<'a> for Array<'a, T> {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        let primitive = value.construct()?;
+        let array = primitive
+            .as_array()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))?;
+        Ok(Array::new_read(array))
+    }
+}
+
+impl<'a, K: Type<'a>, V: Type<'a>> Type<'a> for Map<'a, K, V> {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        let primitive = value.construct()?;
+        let map = primitive
+            .as_map()
+            .ok_or(io::Error::other(error::UNEXPECTED_TYPE))?;
+        Ok(Map::new_read(map))
+    }
+}
+
+impl<'a, T: Type<'a>> Type<'a> for Option<T> {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        let primitive = value.clone().construct()?;
+        if primitive.is_null() {
+            Ok(None)
+        } else {
+            Ok(Some(T::try_from_value(value)?))
+        }
+    }
+}

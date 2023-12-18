@@ -42,6 +42,132 @@ pub enum Primitive<'frame> {
     Array(ArrayIter<'frame>),
 }
 
+impl<'a> Primitive<'a> {
+    pub fn is_null(&self) -> bool {
+        matches!(self, Primitive::Null)
+    }
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Primitive::Boolean(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_i8(&self) -> Option<i8> {
+        match self {
+            Primitive::Byte(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_u8(&self) -> Option<u8> {
+        match self {
+            Primitive::UByte(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_i16(&self) -> Option<i16> {
+        match self {
+            Primitive::Short(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_u16(&self) -> Option<u16> {
+        match self {
+            Primitive::UShort(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_i32(&self) -> Option<i32> {
+        match self {
+            Primitive::Int(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_u32(&self) -> Option<u32> {
+        match self {
+            Primitive::UInt(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            Primitive::Long(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            Primitive::ULong(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_f32(&self) -> Option<f32> {
+        match self {
+            Primitive::Float(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Primitive::Double(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_char(&self) -> Option<char> {
+        match self {
+            Primitive::Char(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_ts(&self) -> Option<Ts> {
+        match self {
+            Primitive::Timestamp(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_uuid(&self) -> Option<Uuid> {
+        match self {
+            Primitive::Uuid(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_str(&self) -> Option<&'a str> {
+        match self {
+            Primitive::String(v) => Some(*v),
+            _ => None,
+        }
+    }
+    pub fn as_binary(&self) -> Option<Binary<'a>> {
+        match self {
+            Primitive::Binary(v) => Some(v.clone()),
+            _ => None,
+        }
+    }
+    pub fn as_symbol(&self) -> Option<Symbol<'a>> {
+        match self {
+            Primitive::Symbol(v) => Some(v.clone()),
+            _ => None,
+        }
+    }
+    pub fn as_list(&self) -> Option<ListIter<'a>> {
+        match self {
+            Primitive::List(v) => Some(v.clone()),
+            _ => None,
+        }
+    }
+    pub fn as_map(&self) -> Option<MapIter<'a>> {
+        match self {
+            Primitive::Map(v) => Some(v.clone()),
+            _ => None,
+        }
+    }
+    pub fn as_array(&self) -> Option<ArrayIter<'a>> {
+        match self {
+            Primitive::Array(v) => Some(v.clone()),
+            _ => None,
+        }
+    }
+}
+
 macro_rules! derive_from_and_try_into {
     ($($id:ident: $Type: ty)*) => {
         $(

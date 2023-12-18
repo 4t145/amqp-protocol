@@ -26,7 +26,6 @@ impl<'frame> Iterator for ListIter<'frame> {
         if self.count == 0 {
             None
         } else {
-            self.count -= 1;
             Some(unsafe { self.next_unchecked() })
         }
     }

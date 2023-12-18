@@ -70,9 +70,14 @@ impl<'a, T> std::fmt::Debug for Array<'a, T> {
 }
 
 impl<'a, T: Multiple> Array<'a, T> {
-    pub fn new(iter: &'a mut impl Iterator<Item = T>) -> Self {
+    pub fn new_write(iter: (impl IntoIterator<Item = T> + 'a)) -> Self {
         Self {
-            iter: ArrayInner::Iter(iter as &'a mut dyn Iterator<Item = T>),
+            iter: ArrayInner::Iter(Box::new(iter.into_iter())),
+        }
+    }
+    pub fn new_read(iter: ArrayIter<'a>) -> Self {
+        Self {
+            iter: ArrayInner::Data(iter),
         }
     }
 }
@@ -87,7 +92,7 @@ impl<'a, T> From<ArrayIter<'a>> for Array<'a, T> {
 
 pub enum ArrayInner<'a, T> {
     Data(ArrayIter<'a>),
-    Iter(&'a mut dyn Iterator<Item = T>),
+    Iter(Box<(dyn Iterator<Item = T> + 'a)>),
 }
 
 impl<'a, T: Type<'a>> Iterator for Array<'a, T> {
@@ -95,7 +100,7 @@ impl<'a, T: Type<'a>> Iterator for Array<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.iter {
-            ArrayInner::Data(d) => d.next().map(|v| v.and_then(TryInto::try_into)),
+            ArrayInner::Data(d) => d.next().map(|v| v.and_then(T::try_from_value)),
             ArrayInner::Iter(iter) => iter.next().map(Ok),
         }
     }

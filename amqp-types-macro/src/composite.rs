@@ -57,12 +57,12 @@ impl ToTokens for CompositeOpts {
             match default {
                 Some(default_value) => {
                     quote! {
-                        #ident: Option::<#ty>::try_from(list.next().transpose()?.unwrap_or_default())?.unwrap_or(#default_value),
+                        #ident: Option::<#ty>::try_from_value(list.next().transpose()?.unwrap_or_default())?.unwrap_or(#default_value),
                     }
                 },
                 None => {
                     quote! {
-                        #ident: TryFrom::try_from(list.next().transpose()?.unwrap_or_default())?,
+                        #ident: <#ty>::try_from_value(list.next().transpose()?.unwrap_or_default())?,
                     }
                 },
             }
@@ -73,12 +73,12 @@ impl ToTokens for CompositeOpts {
             let CompositeFieldOpts { ident, .. } = opt;
             let ident = ident.as_ref().expect("should be named");
             quote! {
-                self.#ident.encode_default(buffer);
+                self.#ident.encode_default(writer)?;
             }
         });
         let try_from = quote!(
-            fn try_from(value: amqp_types::Value<'amqp>) -> Result<Self, Self::Error> {
-                let Primitive::List(mut list) = value.construct()? else {
+            fn try_from_value(value: amqp_types::Value<'amqp>) -> Result<Self, std::io::Error> {
+                let Some(mut list) = value.construct()?.as_list() else {
                     return Err(std::io::Error::other(amqp_types::error::UNEXPECTED_TYPE))
                 };
                 Ok(Self {
@@ -87,26 +87,31 @@ impl ToTokens for CompositeOpts {
             }
         );
         tokens.extend(quote!(
-            impl #r#impl amqp_types::types::Type<'amqp> for #ident #r#type #r#where {
-                amqp_types::no_restrict!{}
+            impl #r#impl amqp_types::types::Restrict for #ident #r#type #r#where {
+                type Source = Self;
+                fn restrict(source: Self::Source) -> Result<Self, Self::Source> {
+                    Ok(source)
+                }
+                fn source(self) -> Self::Source {
+                    self
+                }
             }
-            impl #r#impl TryFrom<amqp_types::Value<'amqp>> for #ident #r#type #r#where {
-                type Error = std::io::Error;
-                #try_from
-            }
-            impl #r#impl amqp_types::codec::Encode<'amqp> for #ident #r#type #r#where {
+            impl #r#impl amqp_types::types::Multiple for #ident #r#type #r#where {}
+            impl #r#impl amqp_types::codec::Encode for #ident #r#type #r#where {
                 const DESCRIPTOR: Option<amqp_types::Descriptor<'static>> = #descriptor;
                 const ENCODE_DEFAULT_FORMAT_CODE: amqp_types::FormatCode = amqp_types::FormatCode::LIST32;
-                fn encode_data(self, format_code: amqp_types::FormatCode, mut buffer: &mut [u8]) -> std::io::Result<()> {
+                fn encode_data(self, format_code: amqp_types::FormatCode, writer: &mut amqp_types::codec::Writer) -> std::io::Result<()> {
                     debug_assert_eq!(format_code, Self::ENCODE_DEFAULT_FORMAT_CODE);
-                    amqp_types::codec::write_items_32(buffer, move |buffer: &mut [u8]| {
+                    writer.write_items_32(move |writer: &mut amqp_types::codec::Writer| {
                         #(#field_encode)*
                         std::io::Result::Ok(#field_len)
                     })?;
                     Ok(())
                 }
             }
-            impl #r#impl amqp_types::types::Multiple<'amqp> for #ident #r#type #r#where {}
+            impl #r#impl amqp_types::types::Type<'amqp> for #ident #r#type #r#where {
+                #try_from
+            }
         ))
     }
 }

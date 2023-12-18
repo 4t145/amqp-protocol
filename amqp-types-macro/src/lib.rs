@@ -32,10 +32,6 @@ impl syn::parse::Parse for Descriptor {
     }
 }
 
-struct AmqpStructAttr {
-    pub descriptor: Option<Descriptor>,
-}
-
 struct AmqpEnumAttr {
     pub descriptor: Option<Descriptor>,
     pub source: Option<syn::Type>,
@@ -236,7 +232,7 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
                 .find_map(|attr| {
                     if attr.path().is_ident(AMQP_DOMAIN) {
                         let mut expr = None;
-                        let result = attr.parse_nested_meta(|nested| {
+                        let _result = attr.parse_nested_meta(|nested| {
                             if nested.path.is_ident("choice") {
                                 let value = nested.value()?;
                                 let value = value.parse::<Expr>()?;
@@ -326,7 +322,7 @@ fn derive_types_for_enum(input: DeriveInput) -> syn::Result<TokenStream> {
         }
     };
 
-    Ok(expanded.into())
+    Ok(expanded)
 }
 
 fn derive_types_for_struct(input: DeriveInput) -> syn::Result<TokenStream> {

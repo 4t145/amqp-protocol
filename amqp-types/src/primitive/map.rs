@@ -49,9 +49,14 @@ pub enum MapInner<'a, K, V> {
 }
 
 impl<'a, K: Type<'a>, V: Type<'a>> Map<'a, K, V> {
-    pub fn new(iter: &'a mut impl Iterator<Item = (K, V)>) -> Self {
+    pub fn new_write(iter: &'a mut impl Iterator<Item = (K, V)>) -> Self {
         Self {
             inner: MapInner::Write(iter as &mut dyn Iterator<Item = (K, V)>),
+        }
+    }
+    pub fn new_read(iter: MapIter<'a>) -> Self {
+        Self {
+            inner: MapInner::Read(iter),
         }
     }
 }

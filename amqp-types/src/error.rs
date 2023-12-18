@@ -1,3 +1,5 @@
+use std::io;
+
 pub const UNEXPECTED_TYPE: &str = "unexpected amqp type";
 pub const UNKNOWN_AMQP_TYPE: &str = "unknown AMQP type";
 pub const BUFFER_OVERFLOW: &str = "buffer overflow";

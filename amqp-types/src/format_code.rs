@@ -21,7 +21,46 @@ impl Default for FormatCode {
 
 impl std::fmt::Debug for FormatCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        match *self {
+            Self::NULL => f.write_str("NULL"),
+            Self::BOOLEAN_TRUE => f.write_str("BOOLEAN_TRUE"),
+            Self::BOOLEAN_FALSE => f.write_str("BOOLEAN_FALSE"),
+            Self::UINT_0 => f.write_str("UINT_0"),
+            Self::ULONG_0 => f.write_str("ULONG_0"),
+            Self::LIST0 => f.write_str("LIST0"),
+            Self::BOOLEAN => f.write_str("BOOLEAN"),
+            Self::UBYTE => f.write_str("UBYTE"),
+            Self::BYTE => f.write_str("BYTE"),
+            Self::SMALL_UINT => f.write_str("SMALL_UINT"),
+            Self::SMALL_ULONG => f.write_str("SMALL_ULONG"),
+            Self::SMALL_INT => f.write_str("SMALL_INT"),
+            Self::SMALL_LONG => f.write_str("SMALL_LONG"),
+            Self::USHORT => f.write_str("USHORT"),
+            Self::SHORT => f.write_str("SHORT"),
+            Self::UINT => f.write_str("UINT"),
+            Self::INT => f.write_str("INT"),
+            Self::FLOAT => f.write_str("FLOAT"),
+            Self::CHAR => f.write_str("CHAR"),
+            Self::DECIMAL32 => f.write_str("DECIMAL32"),
+            Self::ULONG => f.write_str("ULONG"),
+            Self::LONG => f.write_str("LONG"),
+            Self::DOUBLE => f.write_str("DOUBLE"),
+            Self::DECIMAL64 => f.write_str("DECIMAL64"),
+            Self::DECIMAL128 => f.write_str("DECIMAL128"),
+            Self::TIMESTAMP => f.write_str("TIMESTAMP"),
+            Self::UUID => f.write_str("UUID"),
+            Self::BINARY8 => f.write_str("BINARY8"),
+            Self::BINARY32 => f.write_str("BINARY32"),
+            Self::STRING8_UTF8 => f.write_str("STRING8_UTF8"),
+            Self::STRING32_UTF8 => f.write_str("STRING32_UTF8"),
+            Self::SYMBOL8 => f.write_str("SYMBOL8"),
+            Self::SYMBOL32 => f.write_str("SYMBOL32"),
+            Self::LIST8 => f.write_str("LIST8"),
+            Self::LIST32 => f.write_str("LIST32"),
+            Self::MAP8 => f.write_str("MAP8"),
+            Self::MAP32 => f.write_str("MAP32"),
+            Self::ARRAY8 => f.write_str("ARRAY8"),
+            Self::ARRAY32 => f.write_str("ARRAY32"),
             Self::Primitive(arg0) => f
                 .debug_tuple("Primitive")
                 .field(&format_args!("0x{:02X}", arg0))
@@ -174,9 +213,12 @@ impl FormatCode {
                 let size = bytes.peek_n::<4>().map(u32::from_be_bytes)?;
                 size as usize + 4
             }
-            _ => {
+            unknown => {
                 // invalid code
-                return Err(io::Error::other(UNKNOWN_AMQP_TYPE));
+                return Err(io::Error::other(format!(
+                    "unknown format code: 0x{:02X}",
+                    unknown
+                )));
             }
         };
         Ok(size)
