@@ -1,4 +1,4 @@
-use crate::{codec::Encode, constructor::Constructor, error, primitive::*, value::Value};
+use crate::{codec::Encode, error, primitive::*, value::Value};
 use std::io;
 
 mod restrict;
@@ -182,5 +182,11 @@ impl<'a, T: Type<'a>> Type<'a> for Option<T> {
         } else {
             Ok(Some(T::try_from_value(value)?))
         }
+    }
+}
+
+impl<'a> Type<'a> for Value<'a> {
+    fn try_from_value(value: Value<'a>) -> Result<Self, io::Error> {
+        Ok(value)
     }
 }

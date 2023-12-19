@@ -1,4 +1,4 @@
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ts(pub(crate) u64);

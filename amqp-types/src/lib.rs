@@ -2,6 +2,7 @@
 mod constructor;
 pub use constructor::*;
 mod data;
+pub use data::Data;
 mod descriptor;
 pub use descriptor::*;
 mod format_code;

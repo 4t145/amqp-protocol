@@ -1,16 +1,17 @@
-use crate::codec::Encode;
 use crate::error::UNEXPECTED_TYPE;
 use crate::types::{Multiple, Type};
+use crate::Data;
 use crate::{constructor::Constructor, value::Value};
 use std::fmt::Debug;
 use std::io;
+use std::ops::DerefMut;
 
 use super::Primitive;
 #[derive(Debug, Clone, Default)]
 pub struct ArrayIter<'frame> {
     pub constructor: Constructor<'frame>,
     pub count: usize,
-    pub items_data: &'frame [u8],
+    pub items_data: Data<'frame>,
 }
 
 fn try_take_n<'b>(bytes: &mut &'b [u8], size: usize) -> io::Result<&'b [u8]> {
@@ -27,9 +28,9 @@ impl<'frame> ArrayIter<'frame> {
     #[inline]
     unsafe fn next_unchecked(&mut self) -> io::Result<Value<'frame>> {
         self.count -= 1;
-        let size = self.constructor.peek_size(self.items_data)?;
-        let item_data = try_take_n(&mut self.items_data, size)?;
-        self.items_data = &self.items_data[..size];
+        let data = self.items_data.deref_mut();
+        let size = self.constructor.peek_size(data)?;
+        let item_data = try_take_n(data, size)?;
         Ok(Value::new(self.constructor.clone(), item_data))
     }
 }
@@ -57,7 +58,7 @@ impl<'a, T> Default for Array<'a, T> {
             iter: ArrayInner::Data(ArrayIter {
                 constructor: Constructor::default(),
                 count: 0,
-                items_data: &[],
+                items_data: Data::default(),
             }),
         }
     }

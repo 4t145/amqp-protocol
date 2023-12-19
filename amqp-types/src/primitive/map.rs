@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::{constructor::Constructor, error::UNEXPECTED_TYPE, types::Type, value::Value};
+use crate::{error::UNEXPECTED_TYPE, types::Type, value::Value};
 
 use super::{ListIter, Primitive};
 #[derive(Debug, Clone)]

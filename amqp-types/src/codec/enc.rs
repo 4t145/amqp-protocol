@@ -1,18 +1,8 @@
-use std::{
-    fmt::Debug,
-    io::{self, Cursor, Write},
-    mem::size_of,
-};
-pub mod array;
-pub mod list;
-pub mod variable;
-
-use bytes::BufMut;
+use std::{fmt::Debug, io, mem::size_of};
 
 use crate::{
-    constructor::{self, Constructor},
+    constructor::Constructor,
     descriptor::Descriptor,
-    error::UNEXPECTED_TYPE,
     format_code::FormatCode,
     primitive::{Array, Binary, Map, Symbol, Ts, Uuid},
     types::{Multiple, Type},
@@ -489,7 +479,7 @@ impl<'a, K: Type<'a>, V: Type<'a>> Encode for Map<'a, K, V> {
 impl Encode for () {
     const ENCODE_DEFAULT_FORMAT_CODE: FormatCode = FormatCode::NULL;
 
-    fn encode_data(self, format_code: FormatCode, writer: &mut Writer) -> io::Result<()> {
+    fn encode_data(self, format_code: FormatCode, _writer: &mut Writer) -> io::Result<()> {
         debug_assert_eq!(format_code, Self::ENCODE_DEFAULT_FORMAT_CODE);
         Ok(())
     }
@@ -517,5 +507,21 @@ impl<'a, T: Type<'a>> Encode for Option<T> {
             Some(v) => v.encode_default(writer),
             None => ().encode_default(writer),
         }
+    }
+}
+
+impl<'a> Encode for Value<'a> {
+    const DESCRIPTOR: Option<Descriptor<'static>> = unreachable!();
+    const ENCODE_DEFAULT_FORMAT_CODE: FormatCode = unreachable!();
+    fn encode_data(self, _format_code: FormatCode, _writer: &mut Writer) -> io::Result<()> {
+        unreachable!("don't encode value's data directly, use encode instead")
+    }
+    fn encode(self, _constructor: Constructor, writer: &mut Writer) -> io::Result<()> {
+        self.encode_default(writer)
+    }
+    fn encode_default(self, writer: &mut Writer) -> io::Result<()> {
+        writer.write_constructor(self.constructor)?;
+        writer.write_slice(self.data.into_inner())?;
+        Ok(())
     }
 }

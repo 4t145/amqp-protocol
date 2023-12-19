@@ -1,6 +1,4 @@
-use bytes::Bytes;
-
-use crate::{primitive::Symbol, value::Value};
+use crate::primitive::Symbol;
 #[derive(Debug, Clone)]
 pub enum Descriptor<'a> {
     Symbol(Symbol<'a>),

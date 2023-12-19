@@ -1,14 +1,6 @@
 use darling::{ast, FromMeta};
 use quote::{quote, ToTokens};
-use syn::{parse_quote, parse_quote_spanned, Expr};
-
-#[derive(Default, FromMeta)]
-#[darling(default)]
-pub struct Lorem {
-    #[darling(rename = "sit")]
-    ipsum: bool,
-    dolor: Option<syn::Expr>,
-}
+use syn::{parse_quote, Expr};
 
 #[derive(FromDeriveInput)]
 #[darling(attributes(amqp), forward_attrs(allow, doc, cfg), supports(struct_any))]

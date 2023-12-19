@@ -1,11 +1,6 @@
 use std::io;
 
-use bytes::Bytes;
-
-use crate::{
-    codec::DecodeExt,
-    error::{UNEXPECTED_TYPE, UNKNOWN_AMQP_TYPE},
-};
+use crate::codec::DecodeExt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormatCode {

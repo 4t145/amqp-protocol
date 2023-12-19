@@ -1,7 +1,4 @@
-use crate::primitive::{Array, Binary, Map, Symbol, Ts, Uuid};
-
-use super::Type;
-
+use crate::{primitive::{Array, Binary, Map, Symbol, Ts, Uuid}, Value};
 pub trait Restrict: Sized {
     type Source;
     fn restrict(source: Self::Source) -> Result<Self, Self::Source>;
@@ -43,6 +40,7 @@ no_restrict! {
     Symbol<'_>
     Binary<'_>
     &str
+    Value<'_>
 }
 
 impl<'a, T: Restrict> Restrict for Array<'a, T> {

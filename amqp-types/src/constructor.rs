@@ -80,7 +80,7 @@ impl<'frame> Constructor<'frame> {
                 let count = u8::decode(&mut data)? as usize;
                 Primitive::List(ListIter {
                     count,
-                    items_data: data,
+                    items_data: data.into(),
                 })
             }
             FormatCode::LIST32 => {
@@ -89,7 +89,7 @@ impl<'frame> Constructor<'frame> {
                 let count = u32::decode(&mut data)? as usize;
                 Primitive::List(ListIter {
                     count,
-                    items_data: data,
+                    items_data: data.into(),
                 })
             }
             FormatCode::MAP8 => {
@@ -99,7 +99,7 @@ impl<'frame> Constructor<'frame> {
                 Primitive::Map(
                     ListIter {
                         count,
-                        items_data: data,
+                        items_data: data.into(),
                     }
                     .into(),
                 )
@@ -111,7 +111,7 @@ impl<'frame> Constructor<'frame> {
                 Primitive::Map(
                     ListIter {
                         count,
-                        items_data: data,
+                        items_data: data.into(),
                     }
                     .into(),
                 )
@@ -124,7 +124,7 @@ impl<'frame> Constructor<'frame> {
                 Primitive::Array(ArrayIter {
                     constructor,
                     count,
-                    items_data: data,
+                    items_data: data.into(),
                 })
             }
             FormatCode::ARRAY32 => {
@@ -135,7 +135,7 @@ impl<'frame> Constructor<'frame> {
                 Primitive::Array(ArrayIter {
                     constructor,
                     count,
-                    items_data: data,
+                    items_data: data.into(),
                 })
             }
             FormatCode::Primitive(p) => {

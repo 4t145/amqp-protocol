@@ -9,6 +9,8 @@ use quote::quote;
 use syn::{parse_macro_input, token::Colon, Data, DeriveInput, Expr, Field, Fields, Lit};
 mod consts;
 use consts::AMQP_DOMAIN;
+mod newtype_restricted;
+mod enum_restricted;
 
 enum Descriptor {
     Symbol(syn::LitByteStr),
